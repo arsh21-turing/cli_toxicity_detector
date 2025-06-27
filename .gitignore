@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Caches and logs
+*.log
+.cache/
+.tox/
+
+# PyInstaller
+*.spec
+
+# IDEs/editors
+.vscode/
+.idea/
+
+# Model cache directory for Smart CLI Toxicity Detector
+.toxicity_detector/
+
+# OS files
+.DS_Store
+Thumbs.db 
