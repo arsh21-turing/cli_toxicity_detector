@@ -18,7 +18,7 @@ from typing import Any, Dict, Optional
 
 _DEFAULT_CONFIG: Dict[str, Any] = {
     "model": {
-        "name": "paraphrase-multilingual-MiniLM-L12-v2",
+        "name": "unitary/toxic-bert",
         "threshold": 0.6,
         "cache_dir": str(Path.home() / ".toxicity_detector"),
     },
