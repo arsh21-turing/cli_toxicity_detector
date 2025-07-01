@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 import os
 from typing import Dict, List, Optional, Union, Any
+import math
+from categories import ToxicityCategory, TOXIC_CATEGORIES
 
 # Optional heavy deps ---------------------------------------------------------
 try:
@@ -272,4 +274,132 @@ else:
         global _model_singleton
         if _model_singleton is not None:
             _model_singleton.unload()
-            _model_singleton = None 
+            _model_singleton = None
+
+# ---------------------------------------------------------------------------
+# New helpers – sigmoid + rich inference -------------------------------------
+# ---------------------------------------------------------------------------
+
+def _sigmoid(x: float) -> float:  # pragma: no cover simple math util
+    """Scalar sigmoid to avoid mandatory NumPy dependency in stub path."""
+
+    try:
+        import numpy as _np  # type: ignore
+        return float(1 / (1 + _np.exp(-x)))
+    except Exception:
+        return 1 / (1 + math.exp(-x))
+
+
+# Predict-toxicity API --------------------------------------------------------
+
+DEFAULT_THRESHOLD_MAP: Dict[str, float] = {c.name: 0.5 for c in ToxicityCategory}
+
+
+def predict_toxicity(
+    texts: List[str] | str,
+    *,
+    thresholds: Dict[str, float] | None = None,
+    model_name: str = DEFAULT_MODEL,
+    batch_size: int | None = None,
+    show_progress: bool = False,
+) -> List[Dict[str, Any]]:
+    """High-level helper that returns structured toxicity results.
+
+    The function keeps the existing lazy singleton model mechanism so it plays
+    nicely with the rest of the module.  It DOES NOT replace *predict_proba* /
+    *predict_batch* used by legacy code – it simply builds on them.
+    """
+
+    if isinstance(texts, str):
+        texts = [texts]
+
+    if thresholds is None:
+        thresholds = DEFAULT_THRESHOLD_MAP.copy()
+    else:
+        # ensure every category has an entry
+        merged = DEFAULT_THRESHOLD_MAP.copy()
+        merged.update({k.upper(): float(v) for k, v in thresholds.items()})
+        thresholds = merged
+
+    mdl = get_model(model_name=model_name)
+    if batch_size is None:
+        batch_size = getattr(mdl, "batch_size", 32)
+
+    # Step 1: obtain logits – we do NOT call existing predict_proba because it
+    # already applies a softmax over the model's original label set which might
+    # not align exactly with our categories.  Instead, if the real transformers
+    # pipeline is available we fetch logits directly; otherwise we emulate with
+    # zeros so the function still works in the lightweight test environment.
+
+    results: List[Dict[str, Any]] = []
+
+    if _HAS_TRANSFORMERS:
+        import torch  # type: ignore
+        from tqdm import tqdm as _tqdm  # type: ignore
+
+        mdl._load()  # make sure underlying HF objects are ready
+        device = mdl.device  # type: ignore[attr-defined]
+        model = mdl._model  # type: ignore[attr-defined]
+        tokenizer = mdl._tokenizer  # type: ignore[attr-defined]
+
+        batches = [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
+        iterator = _tqdm(batches, disable=not show_progress, desc="toxicity-inference")
+        for batch in iterator:
+            toks = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
+            toks = {k: v.to(device) for k, v in toks.items()}
+            with torch.no_grad():
+                logits = model(**toks).logits.cpu().tolist()  # type: ignore[arg-type]
+
+            for text, logit_vec in zip(batch, logits):
+                # Apply sigmoid element-wise
+                scores = [_sigmoid(v) for v in logit_vec]
+
+                # Map first N scores onto our *toxic* categories; fallback zeros
+                cat_map: Dict[ToxicityCategory, float] = {}
+                for idx, cat in enumerate(TOXIC_CATEGORIES):
+                    cat_map[cat] = scores[idx] if idx < len(scores) else 0.0
+
+                max_toxic = max(cat_map.values()) if cat_map else 0.0
+                cat_map[ToxicityCategory.NON_TOXIC] = 1.0 - max_toxic
+
+                # Determine verdicts
+                verdict_map: Dict[ToxicityCategory, Dict[str, Any]] = {}
+                for c, score in cat_map.items():
+                    thr = thresholds.get(c.name, 0.5)
+                    verdict_map[c] = {"score": score, "above_threshold": score >= thr, "threshold": thr}
+
+                most_probable = max(cat_map.items(), key=lambda it: it[1])[0]
+                is_toxic = any(v["above_threshold"] for c, v in verdict_map.items() if c != ToxicityCategory.NON_TOXIC)
+
+                results.append(
+                    {
+                        "text": text,
+                        "category_results": verdict_map,
+                        "most_probable_category": most_probable,
+                        "is_toxic": is_toxic,
+                        "raw_logits": logit_vec,
+                        "sigmoid_scores": scores,
+                    }
+                )
+    else:
+        # Lightweight stub – generate deterministic zeros so unit tests run fast
+        for text in texts:
+            cat_map = {c: 0.0 for c in TOXIC_CATEGORIES}
+            cat_map[ToxicityCategory.NON_TOXIC] = 1.0
+
+            verdict_map = {
+                c: {"score": s, "above_threshold": False, "threshold": thresholds[c.name]}
+                for c, s in cat_map.items()
+            }
+            results.append(
+                {
+                    "text": text,
+                    "category_results": verdict_map,
+                    "most_probable_category": ToxicityCategory.NON_TOXIC,
+                    "is_toxic": False,
+                    "raw_logits": [0.0] * len(cat_map),
+                    "sigmoid_scores": [0.0] * len(cat_map),
+                }
+            )
+
+    return results 

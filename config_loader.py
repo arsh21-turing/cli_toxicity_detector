@@ -12,16 +12,27 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+# Added import ----------------------------------------------------------------
+from categories import ToxicityCategory  # single-source of category names
+
 # ---------------------------------------------------------------------------
-# Defaults
+# Defaults – extended with per-category *thresholds* -------------------------
 # ---------------------------------------------------------------------------
+
+_DEFAULT_THRESHOLDS: Dict[str, float] = {
+    cat.name: 0.6 for cat in ToxicityCategory
+}
+
+# Note: keep legacy "categories" key untouched for backward-compatibility with
+# existing unit-tests while introducing the new explicit "thresholds" section.
 
 _DEFAULT_CONFIG: Dict[str, Any] = {
     "model": {
         "name": "unitary/toxic-bert",
-        "threshold": 0.6,
+        "threshold": 0.6,  # legacy global threshold (maintained for tests)
         "cache_dir": str(Path.home() / ".toxicity_detector"),
     },
+    # Legacy structure used by tests -------------------------------------------------
     "categories": {
         "insult": 0.6,
         "hate": 0.6,
@@ -30,6 +41,8 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         "sexual": 0.6,
         "self-harm": 0.6,
     },
+    # NEW structure – authoritative per-category thresholds -------------------------
+    "thresholds": _DEFAULT_THRESHOLDS.copy(),
     "output": {
         "show_probabilities": True,
         "color_output": True,
@@ -97,6 +110,14 @@ def load_config() -> Dict[str, Any]:
             else:
                 user_cfg = _read_json(path)
             cfg = _deep_merge(cfg, user_cfg)
+
+            # ---------------------------------------------------------------------
+            # Ensure every category has a threshold set (fallback to defaults) -----
+            # ---------------------------------------------------------------------
+            for cat in ToxicityCategory:
+                cfg.setdefault("thresholds", {})
+                cfg["thresholds"].setdefault(cat.name, _DEFAULT_THRESHOLDS[cat.name])
+            # ---------------------------------------------------------------------
             break  # first match wins
     return cfg
 
