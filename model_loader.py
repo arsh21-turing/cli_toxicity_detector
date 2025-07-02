@@ -294,6 +294,80 @@ def _sigmoid(x: float) -> float:  # pragma: no cover simple math util
 
 DEFAULT_THRESHOLD_MAP: Dict[str, float] = {c.name: 0.5 for c in ToxicityCategory}
 
+# ---------------------------------------------------------------------------
+# Groq fallback helpers ------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+# Confidence band that triggers a second opinion (inclusive bounds)
+GRAY_ZONE_MIN = 0.4
+GRAY_ZONE_MAX = 0.6
+
+# Disk cache for Groq responses --------------------------------------
+from groq_cache import GroqCache
+
+_groq_cache = GroqCache()
+
+def _groq_second_opinion(text: str) -> Optional[Dict[str, float]]:
+    """Return a category→probability map from Groq or *None* if unavailable.
+
+    The function is deliberately lightweight: it avoids importing heavy
+    dependencies unless really necessary and degrades gracefully when the
+    *groq* client or an API key is missing.  A real-world implementation would
+    surface the exact error so the caller can react accordingly.
+    """
+
+    # Check cache first ------------------------------------------------
+    cached = _groq_cache.get(text)
+    if cached:
+        logger.info("Groq cache hit")
+        return cached.get("response")
+
+    try:
+        import groq  # type: ignore
+
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            logger.warning("GROQ_API_KEY not set – skipping Groq fallback")
+            return None
+
+        client = groq.Client(api_key=api_key)  # type: ignore[attr-defined]
+
+        prompt = (
+            "Classify the following sentence for toxicity. "
+            "Return a JSON object whose keys are category names (insult, hate, obscene, "
+            "threat, sexual, self_harm, non_toxic) and whose values are probabilities "
+            "between 0 and 1.\nSentence: " + text
+        )
+
+        response = client.chat.completions.create(  # type: ignore[attr-defined]
+            model="llama3-70b-8192",  # placeholder
+            messages=[
+                {"role": "system", "content": "You are a helpful toxicity classifier."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0,
+            max_tokens=256,
+            response_format={"type": "json_object"},  # type: ignore[arg-type]
+        )
+
+        import json as _json
+
+        raw = response.choices[0].message.content  # type: ignore[index]
+        data = _json.loads(raw)
+
+        # Normalise keys – map to upper enum names
+        prob_map: Dict[str, float] = {}
+        for key, val in data.items():
+            prob_map[key.upper()] = float(val)
+
+        # Save to cache
+        _groq_cache.set(text, {k: v for k, v in prob_map.items()})
+        return prob_map
+
+    except Exception as exc:
+        # Log at debug level to avoid noisy stderr when library missing
+        logger.debug("Groq fallback unavailable: %s", exc)
+        return None
 
 def predict_toxicity(
     texts: List[str] | str,
@@ -302,6 +376,10 @@ def predict_toxicity(
     model_name: str = DEFAULT_MODEL,
     batch_size: int | None = None,
     show_progress: bool = False,
+    allow_groq_fallback: bool = False,
+    gray_min: float | None = None,
+    gray_max: float | None = None,
+    tie_policy: str = "prefer-groq",
 ) -> List[Dict[str, Any]]:
     """High-level helper that returns structured toxicity results.
 
@@ -324,6 +402,16 @@ def predict_toxicity(
     mdl = get_model(model_name=model_name)
     if batch_size is None:
         batch_size = getattr(mdl, "batch_size", 32)
+
+    # Resolve active gray-zone bounds ------------------------------
+    if gray_min is None:
+        gray_min = GRAY_ZONE_MIN
+    if gray_max is None:
+        gray_max = GRAY_ZONE_MAX
+
+    # Validate tie_policy early to avoid repeated checks
+    if tie_policy not in {"prefer-groq", "prefer-local", "highest-confidence"}:
+        raise ValueError(f"Unknown tie_policy: {tie_policy}")
 
     # Step 1: obtain logits – we do NOT call existing predict_proba because it
     # already applies a softmax over the model's original label set which might
@@ -369,7 +457,73 @@ def predict_toxicity(
                     verdict_map[c] = {"score": score, "above_threshold": score >= thr, "threshold": thr}
 
                 most_probable = max(cat_map.items(), key=lambda it: it[1])[0]
-                is_toxic = any(v["above_threshold"] for c, v in verdict_map.items() if c != ToxicityCategory.NON_TOXIC)
+                top_score = cat_map[most_probable]
+                is_toxic = any(
+                    v["above_threshold"] for c, v in verdict_map.items() if c != ToxicityCategory.NON_TOXIC
+                )
+
+                tie_source = "local"  # default unless Groq overrides
+
+                # ------------------------------------------------------
+                # Groq fallback if in gray zone ------------------------
+                # ------------------------------------------------------
+                groq_used = False
+                if allow_groq_fallback and gray_min <= top_score <= gray_max:
+                    groq_map = _groq_second_opinion(text)
+                    if groq_map:
+                        groq_used = True
+
+                        # Build verdict map from Groq probabilities
+                        groq_verdict_map: Dict[ToxicityCategory, Dict[str, Any]] = {}
+                        for cat in ToxicityCategory:
+                            groq_score = groq_map.get(cat.name, cat_map.get(cat, 0.0))
+                            thr = thresholds.get(cat.name, 0.5) if thresholds else 0.5
+                            groq_verdict_map[cat] = {
+                                "score": groq_score,
+                                "above_threshold": groq_score >= thr,
+                                "threshold": thr,
+                            }
+
+                        groq_most = max(groq_verdict_map.items(), key=lambda it: it[1]["score"])[0]
+                        groq_top_score = groq_verdict_map[groq_most]["score"]
+                        groq_is_toxic = any(
+                            v["above_threshold"]
+                            for c, v in groq_verdict_map.items()
+                            if c != ToxicityCategory.NON_TOXIC
+                        )
+
+                        # Log disagreements --------------------------------
+                        if (groq_is_toxic != is_toxic) or (groq_most != most_probable):
+                            logger.warning(
+                                "Groq and local model disagree – local: toxic=%s cat=%s | groq: toxic=%s cat=%s",
+                                is_toxic,
+                                most_probable.name,
+                                groq_is_toxic,
+                                groq_most.name,
+                            )
+
+                        # Decide which result to keep based on *tie_policy*
+                        chosen_source = "groq"
+                        if tie_policy == "prefer-local":
+                            chosen_source = "local"
+                        elif tie_policy == "highest-confidence":
+                            # Compare distance from 0.5 (confidence centre)
+                            local_conf = abs(top_score - 0.5)
+                            groq_conf = abs(groq_top_score - 0.5)
+                            if local_conf > groq_conf:
+                                chosen_source = "local"
+
+                        if chosen_source == "groq":
+                            verdict_map = groq_verdict_map
+                            most_probable = groq_most
+                            top_score = groq_top_score
+                            is_toxic = groq_is_toxic
+                            groq_used = True
+                        else:
+                            # Keep local results; flag we consulted Groq
+                            groq_used = False
+
+                        tie_source = chosen_source
 
                 results.append(
                     {
@@ -379,6 +533,10 @@ def predict_toxicity(
                         "is_toxic": is_toxic,
                         "raw_logits": logit_vec,
                         "sigmoid_scores": scores,
+                        "groq_used": groq_used,
+                        "gray_zone_bounds": (gray_min, gray_max),
+                        "tie_policy": tie_policy,
+                        "tie_source": tie_source,
                     }
                 )
     else:
@@ -387,18 +545,70 @@ def predict_toxicity(
             cat_map = {c: 0.0 for c in TOXIC_CATEGORIES}
             cat_map[ToxicityCategory.NON_TOXIC] = 1.0
 
+            top_score = 0.0  # with stub all toxic scores zero
             verdict_map = {
                 c: {"score": s, "above_threshold": False, "threshold": thresholds[c.name]}
                 for c, s in cat_map.items()
             }
+
+            most_probable = ToxicityCategory.NON_TOXIC
+            is_toxic = False
+            groq_used = False
+            tie_source = "local"
+
+            # Allow Groq fallback even in stub mode for unit tests
+            if allow_groq_fallback and gray_min <= top_score <= gray_max:
+                groq_map = _groq_second_opinion(text)
+                if groq_map:
+                    # Build verdict map from Groq probabilities
+                    groq_verdict_map = {}
+                    for cat in ToxicityCategory:
+                        groq_score = groq_map.get(cat.name, 0.0)
+                        thr = thresholds.get(cat.name, 0.5)
+                        groq_verdict_map[cat] = {
+                            "score": groq_score,
+                            "above_threshold": groq_score >= thr,
+                            "threshold": thr,
+                        }
+
+                    groq_most = max(groq_verdict_map.items(), key=lambda it: it[1]["score"])[0]
+                    groq_top_score = groq_verdict_map[groq_most]["score"]
+                    groq_is_toxic = any(
+                        v["above_threshold"] for c, v in groq_verdict_map.items() if c != ToxicityCategory.NON_TOXIC
+                    )
+
+                    # Decide based on tie_policy
+                    chosen_source = "groq"
+                    if tie_policy == "prefer-local":
+                        chosen_source = "local"
+                    elif tie_policy == "highest-confidence":
+                        if abs(top_score - 0.5) > abs(groq_top_score - 0.5):
+                            chosen_source = "local"
+
+                    if chosen_source == "groq":
+                        verdict_map = groq_verdict_map
+                        most_probable = groq_most
+                        top_score = groq_top_score
+                        is_toxic = groq_is_toxic
+                        groq_used = True
+                        tie_source = "groq"
+                    else:
+                        # remain local
+                        groq_used = False
+                        tie_source = "local"
+
             results.append(
                 {
                     "text": text,
                     "category_results": verdict_map,
-                    "most_probable_category": ToxicityCategory.NON_TOXIC,
-                    "is_toxic": False,
+                    "most_probable_category": most_probable,
+                    "is_toxic": is_toxic,
                     "raw_logits": [0.0] * len(cat_map),
                     "sigmoid_scores": [0.0] * len(cat_map),
+                    "groq_used": groq_used,
+                    "gray_zone_bounds": (gray_min, gray_max),
+                    "tie_policy": tie_policy,
+                    "tie_source": tie_source,
                 }
             )
 

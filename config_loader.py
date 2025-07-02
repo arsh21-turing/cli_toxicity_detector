@@ -47,6 +47,13 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         "show_probabilities": True,
         "color_output": True,
     },
+    # Groq-related defaults -------------------------------------------------
+    "groq": {
+        "fallback_enabled": False,
+        "lower_bound": 0.4,
+        "upper_bound": 0.6,
+        "tie_policy": "prefer-groq",
+    },
 }
 
 # Candidate config paths (ordered by precedence)

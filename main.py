@@ -104,8 +104,59 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--output", "-o", help="Save JSON output to the given file")
 
+    # Optional Groq fallback -------------------------------------------------
+    p.add_argument(
+        "--allow-groq-fallback",
+        action="store_true",
+        help="Consult Groq for a second opinion when the local model is uncertain (gray-zone predictions)",
+    )
+
+    # Determine default from config for help text, but CLI will use config when flag absent
+    try:
+        from config_loader import load_config as _lc
+        _cfg_default = _lc()
+        _cfg_default_policy = _cfg_default.get("groq", {}).get("tie_policy", "prefer-groq")
+    except Exception:
+        _cfg_default_policy = "prefer-groq"
+
+    p.add_argument(
+        "--groq-tie-policy",
+        choices=["prefer-groq", "prefer-local", "highest-confidence"],
+        default=None,
+        help=(
+            "Tie-breaking rule when Groq and local model disagree. Choices: "
+            "prefer-groq, prefer-local, highest-confidence. "
+            f"If omitted, uses value from config (current default: {_cfg_default_policy})."
+        ),
+    )
+
+    # Groq gray-zone bound overrides --------------------------------------
+    p.add_argument(
+        "--groq-lower-bound",
+        type=float,
+        help="Lower confidence bound that triggers Groq fallback (default 0.4)",
+    )
+    p.add_argument(
+        "--groq-upper-bound",
+        type=float,
+        help="Upper confidence bound that triggers Groq fallback (default 0.6)",
+    )
+
     # Inject threshold args after core flags to keep help tidy
     create_threshold_argument(p)
+
+    # Additional mode_grp arguments
+    mode_grp.add_argument(
+        "--clear-groq-cache",
+        action="store_true",
+        help="Delete all cached Groq responses and exit",
+    )
+
+    mode_grp.add_argument(
+        "--groq-cache-stats",
+        action="store_true",
+        help="Display statistics about the Groq API response cache and exit",
+    )
 
     return p
 
@@ -118,7 +169,18 @@ def _process_single(text: str, *, cfg: Dict[str, Any], args: argparse.Namespace)
     threshold = args.threshold if args.threshold is not None else cfg["model"]["threshold"]
     model_name = args.model if args.model else cfg["model"]["name"]
 
-    res = predict_toxicity(text=text, threshold=threshold, model_name=model_name)
+    tie_policy_active = args.groq_tie_policy if args.groq_tie_policy is not None else cfg.get("groq", {}).get("tie_policy", "prefer-groq")
+
+    res = predict_toxicity(
+        texts=[text],
+        thresholds={cat.name: threshold for cat in ToxicityCategory},
+        model_name=model_name,
+        show_progress=False,
+        allow_groq_fallback=args.allow_groq_fallback,
+        gray_min=args.groq_lower_bound,
+        gray_max=args.groq_upper_bound,
+        tie_policy=tie_policy_active,
+    )[0]
 
     if args.probabilities:
         res["raw_probabilities"] = load_model(model_name=model_name)[0]
@@ -299,13 +361,66 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: C901 – clarity
     if getattr(args, "metrics", None):
         cfg["requested_metrics"] = [m.strip() for m in str(args.metrics).split(",") if m.strip()]
 
+    # ------------------------------------------------------------------
+    # Validate Groq bound values ---------------------------------------
+    # ------------------------------------------------------------------
+    if args.groq_lower_bound is not None and not (0.0 <= args.groq_lower_bound <= 1.0):
+        parser.error("--groq-lower-bound must be between 0.0 and 1.0")
+
+    if args.groq_upper_bound is not None and not (0.0 <= args.groq_upper_bound <= 1.0):
+        parser.error("--groq-upper-bound must be between 0.0 and 1.0")
+
+    if args.groq_lower_bound is not None and args.groq_upper_bound is not None:
+        if args.groq_lower_bound >= args.groq_upper_bound:
+            parser.error("--groq-lower-bound must be smaller than --groq-upper-bound")
+
     # ---------------------------------------------------------------------
+    # Groq cache maintenance / info commands -----------------------------
+    # ---------------------------------------------------------------------
+    if args.clear_groq_cache:
+        from groq_cache import GroqCache
+        removed = GroqCache().clear()
+        print(f"Cleared {removed} cached Groq responses.")
+        return 0
+
+    if args.groq_cache_stats:
+        from groq_cache import GroqCache
+
+        stats = GroqCache().stats()
+        print("\nGroq API Response Cache Statistics")
+        print("=" * 40)
+        print(f"Cache location: {stats['dir']}")
+        print(f"Total entries: {stats['entries']}")
+
+        # Show size in human-friendly MB as well as bytes if available
+        size_mb = stats.get("size_mb")
+        size_bytes = stats.get("size_bytes")
+        if size_mb is not None and size_bytes is not None:
+            print(f"Total size: {size_mb:.2f} MB ({size_bytes} bytes)")
+
+        if stats.get("oldest"):
+            print(f"Oldest entry: {stats['oldest']}")
+        if stats.get("newest"):
+            print(f"Newest entry: {stats['newest']}")
+
+        if stats['entries'] == 0:
+            print("The cache is currently empty. It will populate as you use --allow-groq-fallback.")
+        else:
+            print("\nUse '--clear-groq-cache' to remove cached entries if they become stale.")
+
+        # Nothing else to do
+        return 0
+
     if args.text:
         res = predict_toxicity(
             texts=[args.text],
             thresholds=cfg.get("thresholds"),
             model_name=args.model or cfg.get("model", {}).get("name", "unitary/toxic-bert"),
             show_progress=False,
+            allow_groq_fallback=args.allow_groq_fallback,
+            gray_min=args.groq_lower_bound,
+            gray_max=args.groq_upper_bound,
+            tie_policy=args.groq_tie_policy if args.groq_tie_policy is not None else cfg.get("groq", {}).get("tie_policy", "prefer-groq"),
         )[0]
         display_single_text_result(res, cfg)
         return 0
