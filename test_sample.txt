@@ -1,0 +1,5 @@
+This is a normal sentence for testing. This document contains mixed content.
+You are such an idiot! This toxic sentence contains hate speech.
+Another normal sentence here. The weather is nice today.
+Some more hate speech that is really toxic. This should be flagged.
+Final normal sentence to complete the test. 

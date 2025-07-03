@@ -39,13 +39,24 @@ def supports_color() -> bool:  # pragma: no cover – platform-specific heuristi
     return True
 
 
-def _apply(code: str, text: str, enabled: bool) -> str:
-    return f"{code}{text}{COLORS['RESET']}" if enabled else text
+def _apply(code: str, text: str, *, enabled: bool, bold: bool = False) -> str:
+    if not enabled:
+        return text
+    parts = []
+    if bold:
+        parts.append("\033[1m")  # ANSI bold
+    parts.append(code)
+    parts.append(text)
+    parts.append(COLORS["RESET"])
+    return "".join(parts)
 
 
-def colorize(text: str, color: str, enabled: bool = True) -> str:
-    """Wrap *text* in ANSI *color* sequence when *enabled* is true."""
-    return _apply(COLORS.get(color.upper(), ""), text, enabled and supports_color())
+def colorize(text: str, color: str, enabled: bool = True, *, bold: bool = False) -> str:
+    """Wrap *text* in ANSI *color* sequence when *enabled* is true.
+
+    Set *bold* to True to apply bold formatting.
+    """
+    return _apply(COLORS.get(color.upper(), ""), text, enabled=enabled and supports_color(), bold=bold)
 
 
 def colorize_toxic(is_toxic: bool, enabled: bool = True) -> str:

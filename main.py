@@ -10,17 +10,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
+from enum import Enum
 
 from logger import logger as log
 from config_loader import create_default_config, load_config
 from file_processor import process_file
-from model_loader import predict_toxicity
+from model_loader import predict_toxicity, get_model as load_model
 from categories import ToxicityCategory
-from color_utils import colorize_toxic, supports_color
+from color_utils import colorize_toxic, supports_color, colorize
+from batch_processor import batch_process
+
+
+class SortOrder(Enum):
+    """Enum for confidence sort order."""
+    HIGHEST_FIRST = "highest"
+    LOWEST_FIRST = "lowest"
+
 
 # ---------------------------------------------------------------------------
 # Threshold CLI helpers ------------------------------------------------------
@@ -50,6 +60,48 @@ def create_threshold_argument(parser: argparse.ArgumentParser) -> None:
         )
 
 
+def check_confidence_filter(confidence: float, args: argparse.Namespace) -> tuple[bool, str]:
+    """
+    Check if a confidence value passes the confidence filtering criteria.
+    
+    Args:
+        confidence: The confidence score to check (0.0-1.0)
+        args: Command line arguments containing confidence filter settings
+        
+    Returns:
+        Tuple of (passes_filter: bool, reason: str)
+        - passes_filter: True if the confidence passes all filters
+        - reason: String describing why it was filtered (empty if passes)
+    """
+    # Check single confidence filter
+    if hasattr(args, 'confidence_filter') and args.confidence_filter is not None:
+        try:
+            threshold = float(args.confidence_filter)
+            if confidence < threshold:
+                return False, f"below threshold {threshold:.4f}"
+        except (ValueError, TypeError):
+            pass  # Treat invalid values as no filter
+    
+    # Check range filters
+    if hasattr(args, 'min_confidence') and args.min_confidence is not None:
+        try:
+            min_threshold = float(args.min_confidence)
+            if confidence < min_threshold:
+                return False, f"below minimum {min_threshold:.4f}"
+        except (ValueError, TypeError):
+            pass
+    
+    if hasattr(args, 'max_confidence') and args.max_confidence is not None:
+        try:
+            max_threshold = float(args.max_confidence)
+            if confidence > max_threshold:
+                return False, f"above maximum {max_threshold:.4f}"
+        except (ValueError, TypeError):
+            pass
+    
+    return True, ""
+
+
 def parse_threshold_args(args: argparse.Namespace) -> Dict[str, float]:
     """Return a mapping *category_name* → threshold extracted from *args*."""
 
@@ -71,6 +123,354 @@ def parse_threshold_args(args: argparse.Namespace) -> Dict[str, float]:
 
 
 # ---------------------------------------------------------------------------
+# Confidence Explanation Functions ------------------------------------------
+# ---------------------------------------------------------------------------
+
+def generate_confidence_explanation(result: Dict[str, Any], text: str) -> Dict[str, Any]:
+    """
+    Generate a natural language explanation for the model's confidence level.
+    
+    Args:
+        result: Prediction result dictionary
+        text: Input text that was analyzed
+        
+    Returns:
+        Dictionary containing explanation, factors, and suggestions
+    """
+    # Extract key information from the result - handle both formats
+    category_results = result.get('category_results', {})
+    is_toxic = result.get('is_toxic', False)
+    
+    # Handle legacy format with categories/probabilities
+    if not category_results and 'categories' in result and 'probabilities' in result:
+        # Convert legacy format to category_results format
+        from unittest.mock import MagicMock
+        category_results = {}
+        categories = result['categories']
+        probabilities = result['probabilities']
+        
+        for cat_name, is_above_threshold in categories.items():
+            if cat_name != 'NON_TOXIC':  # Skip NON_TOXIC category
+                mock_cat = MagicMock()
+                mock_cat.name = cat_name.lower()
+                category_results[mock_cat] = {
+                    'score': probabilities.get(cat_name, 0.0),
+                    'above_threshold': is_above_threshold
+                }
+    
+    if not category_results:
+        return {
+            'explanation': 'Unable to generate explanation: insufficient data',
+            'confidence_level': 'unknown',
+            'primary_category': 'unknown',
+            'confidence_score': 0.0,
+            'confidence_factors': [],
+            'uncertainty_factors': [],
+            'improvement_suggestions': []
+        }
+    
+    # Find the category with the highest score
+    max_score = 0.0
+    max_category = None
+    for cat, data in category_results.items():
+        score = data.get('score', 0.0)
+        if score > max_score:
+            max_score = score
+            max_category = cat
+    
+    if max_category is None:
+        return {
+            'explanation': 'Unable to determine primary category',
+            'confidence_level': 'unknown',
+            'primary_category': 'unknown',
+            'confidence_score': 0.0,
+            'confidence_factors': [],
+            'uncertainty_factors': [],
+            'improvement_suggestions': []
+        }
+    
+    # Determine confidence level
+    if max_score >= 0.8:
+        confidence_level = "high"
+    elif max_score >= 0.6:
+        confidence_level = "moderate"  
+    elif max_score >= 0.4:
+        confidence_level = "borderline"
+    else:
+        confidence_level = "low"
+    
+    # Extract category name safely
+    primary_category = getattr(max_category, 'name', str(max_category))
+    
+    # Generate confidence factors and uncertainty factors
+    confidence_factors = []
+    uncertainty_factors = []
+    
+    # Check for toxic terms in the primary category
+    if primary_category in ['hate', 'insult', 'profanity', 'threat', 'identity_attack', 'sexual']:
+        toxic_terms = _find_toxic_terms(text, primary_category)
+        if toxic_terms:
+            terms_str = '", "'.join(toxic_terms)
+            confidence_factors.append(f'The text contains terms strongly associated with {primary_category}: "{terms_str}".')
+    
+    # Check for explicit language patterns
+    if _has_explicit_content(text):
+        confidence_factors.append("The text contains explicit language that strongly indicates toxicity.")
+    
+    # Check for directive/imperative language
+    if _has_directive_language(text):
+        confidence_factors.append("The text uses directive language or imperatives, which are often associated with toxic content.")
+    
+    # Check for implicit/coded language (uncertainty factor)
+    if _has_implicit_content(text):
+        uncertainty_factors.append("The text may contain implicit or coded language that could affect classification confidence.")
+    
+    # Analyze confidence level for additional factors/uncertainties
+    if confidence_level == "high":
+        if max_score >= 0.95:
+            confidence_factors.append(f"Very high confidence score ({max_score:.2f}) indicates clear toxicity patterns.")
+        elif len(confidence_factors) == 0:
+            confidence_factors.append("High confidence despite no obvious toxic markers may indicate subtle patterns the model detected.")
+    
+    elif confidence_level == "moderate":
+        uncertainty_factors.append("Medium confidence suggests some ambiguity in the text that makes classification less certain.")
+        if max_score < 0.7:
+            uncertainty_factors.append("Score is in the moderate range, suggesting mixed signals in the content.")
+    
+    elif confidence_level == "borderline":
+        uncertainty_factors.append("Borderline confidence indicates the text is difficult to classify definitively.")
+        uncertainty_factors.append("This prediction would benefit from human review or additional context.")
+    
+    elif confidence_level == "low":
+        uncertainty_factors.append("Low confidence suggests the model is very uncertain about this classification.")
+        uncertainty_factors.append("The text may be ambiguous, context-dependent, or contain conflicting signals.")
+    
+    # Add fallback confidence factors if none found
+    if not confidence_factors:
+        confidence_factors.append("No specific confidence factors identified.")
+        
+    # Add fallback uncertainty factors if none found for non-high confidence
+    if confidence_level != "high" and not uncertainty_factors:
+        uncertainty_factors.append("No specific uncertainty factors identified.")
+    
+    # Generate improvement suggestions
+    improvement_suggestions = []
+    
+    if confidence_level in ["borderline", "low"]:
+        improvement_suggestions.append("Consider using Groq fallback (--allow-groq-fallback) for additional validation.")
+        improvement_suggestions.append("Manual review recommended for borderline cases.")
+        
+    if confidence_level == "moderate":
+        improvement_suggestions.append("Additional context or longer text samples might improve classification confidence.")
+        
+    if not improvement_suggestions:
+        improvement_suggestions.append("No specific suggestions available for this prediction.")
+    
+    # Generate main explanation
+    if confidence_level == "high":
+        explanation = f"The model has high confidence ({max_score:.2f}) in classifying this content as {primary_category.upper()}."
+    elif confidence_level == "moderate":
+        explanation = f"The model has moderate confidence ({max_score:.2f}) in classifying this content as {primary_category.upper()}."
+    elif confidence_level == "borderline":
+        explanation = f"The model has borderline confidence ({max_score:.2f}) in classifying this content as {primary_category.upper()}. Consider using Groq fallback for additional validation."
+    else:
+        explanation = f"The model has low confidence ({max_score:.2f}) in classifying this content as {primary_category.upper()}. Human review strongly recommended."
+    
+    return {
+        'explanation': explanation,
+        'confidence_level': confidence_level,
+        'primary_category': primary_category,
+        'confidence_score': max_score,
+        'confidence_factors': confidence_factors,
+        'uncertainty_factors': uncertainty_factors,
+        'improvement_suggestions': improvement_suggestions
+    }
+
+
+def _find_toxic_terms(text: str, category: str) -> List[str]:
+    """Find terms in the text that contribute to toxicity for a given category."""
+    text_lower = text.lower()
+    found_terms = []
+    
+    # Category-specific terms
+    category_terms = {
+        'hate': ['hate', 'racist', 'bigot', 'prejudice', 'discrimination', 'stereotyp'],
+        'insult': ['stupid', 'idiot', 'moron', 'dumb', 'loser', 'pathetic', 'ugly'],
+        'profanity': ['fuck', 'shit', 'damn', 'ass', 'crap', 'bitch'],
+        'threat': ['kill', 'hurt', 'destroy', 'attack', 'fight', 'beat', 'die', 'threat'],
+        'identity_attack': ['retard', 'cripple', 'gay', 'faggot', 'queer', 'homo', 'tranny'],
+        'sexual': ['porn', 'sex', 'masturbat', 'dick', 'cock', 'pussy'],
+    }
+    
+    # General toxic markers (including patterns with *censoring*)
+    general_patterns = [
+        r'\bf+u+c*k+\b', r'\bs+h+[i1]+t+\b', r'\ba+s+s+h+o+l+e+\b', r'\bd+[i1]+c+k+\b',
+        r'\bf\*+c*k+\b', r'\bs\*+[i1]+t+\b', r'\ba\*+s+\b'  # censored versions
+    ]
+    
+    # Get terms for the specific category
+    specific_terms = category_terms.get(category, [])
+    
+    # Check for category-specific terms
+    for term in specific_terms:
+        if term in text_lower:
+            # Find the actual match in the original text for better display
+            match = re.search(r'\b\w*' + re.escape(term) + r'\w*\b', text_lower)
+            if match:
+                found_terms.append(match.group(0))
+    
+    # Check for general toxic patterns
+    for pattern in general_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            found_terms.append(match.group(0))
+    
+    # Get unique terms
+    return list(set(found_terms))
+
+
+def _has_directive_language(text: str) -> bool:
+    """Check if text uses directive language or imperatives."""
+    directive_patterns = [
+        r'\byou should\b',
+        r'\byou need to\b',
+        r'\bgo\b.*\byourself\b',
+        r'^[A-Z\s]*!',  # All caps followed by exclamation
+        r'\b[a-zA-Z]+\s+yourself\b'
+    ]
+    
+    # Check for multiple exclamation or question marks
+    if re.search(r'[!?]{2,}', text):
+        return True
+    
+    # Check for imperative start with verbs
+    imperative_starts = [
+        r'^\s*[Gg]o\b',
+        r'^\s*[Ss]top\b',
+        r'^\s*[Gg]et\b', 
+        r'^\s*[Ss]hut\b',
+        r'^\s*[Kk]ill\b',
+        r'^\s*[Ff]uck\b',
+        r'^\s*[Ll]eave\b'
+    ]
+    
+    for pattern in directive_patterns + imperative_starts:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+            
+    return False
+
+
+def _has_explicit_content(text: str) -> bool:
+    """Check if the text contains explicit language."""
+    explicit_patterns = [
+        r'\bfuck\b', r'\bfucking\b', r'\bfucked\b', r'\bfucker\b',
+        r'\bshit\b', r'\bshitting\b', r'\bshitty\b',
+        r'\basshole\b', r'\bass\b',
+        r'\bbitch\b', r'\bbitching\b', r'\bbitchy\b',
+        r'\bdick\b', r'\bdickie\b',
+        r'\bpussy\b',
+        r'\bnigger\b', r'\bnigga\b',
+        # Patterns with asterisk censoring
+        r'\bf\*+c*k+\b', r'\bf\*+k\b',
+        r'\bs\*+[i1]+t+\b',
+        r'\ba\*+s+\b',
+        r'\bb\*+t+c+h+\b',
+        r'\bd\*+c*k+\b',
+        # Patterns with double asterisk censoring
+        r'\ba\*\*hole\b',
+        r'\bf\*\*k\b',
+        r'\bs\*\*t\b'
+    ]
+    
+    for pattern in explicit_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+            
+    return False
+
+
+def _has_implicit_content(text: str) -> bool:
+    """Check if text contains implicit or coded language."""
+    implicit_patterns = [
+        r'\bsnowflake\b',
+        r'\bthug\b',
+        r'\burban\b',
+        r'\bthose people\b',
+        r'\byour kind\b',
+        r'\bspecial person\b',
+        r'\bwoke\b',
+        r'\bbased\b'
+    ]
+    
+    for pattern in implicit_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+            
+    return False
+
+
+def _display_confidence_explanation(explanation_obj: Dict[str, Any]) -> None:
+    """
+    Display confidence explanation in a user-friendly format.
+    
+    Args:
+        explanation_obj: Explanation object from generate_confidence_explanation
+    """
+    # Get key elements from explanation
+    explanation = explanation_obj.get('explanation', '')
+    confidence_level = explanation_obj.get('confidence_level', '')
+    confidence_factors = explanation_obj.get('confidence_factors', [])
+    uncertainty_factors = explanation_obj.get('uncertainty_factors', [])
+    suggestions = explanation_obj.get('improvement_suggestions', [])
+    
+    # Choose color based on confidence level
+    if confidence_level == "high":
+        color = "green"
+        bold = True
+    elif confidence_level == "moderate":
+        color = "blue"
+        bold = True
+    elif confidence_level == "borderline":
+        color = "yellow"
+        bold = True
+    else:  # low confidence
+        color = "red"
+        bold = False
+    
+    # Display header
+    print("\n" + "=" * 60)
+    print(colorize("CONFIDENCE EXPLANATION", "blue", bold=True))
+    print("=" * 60)
+    
+    # Main explanation
+    print(colorize(explanation, color, bold=bold))
+    print()
+    
+    # Display confidence factors
+    if confidence_factors:
+        print(colorize("Confidence factors:", "blue"))
+        for factor in confidence_factors:
+            print(f" • {factor}")
+        print()
+    
+    # Display uncertainty factors
+    if uncertainty_factors:
+        print(colorize("Uncertainty factors:", "yellow" if uncertainty_factors else "green"))
+        for factor in uncertainty_factors:
+            print(f" • {factor}")
+        print()
+    
+    # Display suggestions
+    if suggestions:
+        print(colorize("Suggestions:", "green"))
+        for suggestion in suggestions:
+            print(f" • {suggestion}")
+    
+    print("=" * 60)
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing -----------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -83,6 +483,8 @@ def _build_parser() -> argparse.ArgumentParser:
     mode_grp = p.add_mutually_exclusive_group(required=True)
     mode_grp.add_argument("--text", help="Analyse a single text string")
     mode_grp.add_argument("--file", help="Analyse a .txt file line-by-line")
+    mode_grp.add_argument("--batch", help="Process a file or directory in batch mode")
+    mode_grp.add_argument("--stream", action="store_true", help="Process text from stdin in real-time streaming mode")
     mode_grp.add_argument(
         "--create-config",
         action="store_true",
@@ -141,6 +543,34 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="Upper confidence bound that triggers Groq fallback (default 0.6)",
     )
+    
+    # Confidence filtering -----------------------------------------------
+    p.add_argument(
+        "--confidence-filter",
+        type=float,
+        help="Only show results with confidence above this threshold (0.0-1.0)",
+    )
+    p.add_argument(
+        "--min-confidence",
+        type=float,
+        help="Only show results with confidence above this minimum threshold (0.0-1.0)",
+    )
+    p.add_argument(
+        "--max-confidence",
+        type=float,
+        help="Only show results with confidence below this maximum threshold (0.0-1.0)",
+    )
+    p.add_argument(
+        "--confidence-explain",
+        action="store_true",
+        help="Provide natural language explanations for model confidence levels",
+    )
+    p.add_argument(
+        "--confidence-sort",
+        type=str,
+        choices=["highest", "lowest"],
+        help="Sort results by confidence level (highest or lowest first)",
+    )
 
     # Inject threshold args after core flags to keep help tidy
     create_threshold_argument(p)
@@ -183,18 +613,64 @@ def _process_single(text: str, *, cfg: Dict[str, Any], args: argparse.Namespace)
     )[0]
 
     if args.probabilities:
-        res["raw_probabilities"] = load_model(model_name=model_name)[0]
+        # Try to get raw probabilities from legacy helper for backwards-compat
+        try:
+            from model_loader import predict_proba  # type: ignore
+            prob_map = predict_proba(text)[0]  # type: ignore[index]
+        except Exception:
+            prob_map = {}
+        res["raw_probabilities"] = prob_map
 
+    # Check confidence filtering for single text
+    scores = {cat.name: data['score'] for cat, data in res['category_results'].items()}
+    max_score = max(scores.values()) if scores else 0.0
+    passes_filter, filter_reason = check_confidence_filter(max_score, args)
+    
+    if not passes_filter:
+        if args.json:
+            payload: Dict[str, Any] = {
+                "text": text,
+                "filtered": True,
+                "filter_reason": filter_reason,
+                "confidence": max_score,
+                "timestamp": datetime.now().isoformat(),
+            }
+            # Add confidence explanation to JSON if requested
+            if hasattr(args, 'confidence_explain') and args.confidence_explain:
+                explanation_obj = generate_confidence_explanation(res, text)
+                payload["confidence_explanation"] = explanation_obj
+            _emit_json(payload, args.output)
+        else:
+            print(f"Result filtered: {filter_reason} (confidence: {max_score:.4f})")
+            # Add confidence explanation for filtered results if requested
+            if hasattr(args, 'confidence_explain') and args.confidence_explain:
+                explanation_obj = generate_confidence_explanation(res, text)
+                _display_confidence_explanation(explanation_obj)
+        return res
+    
     if args.json:
+        # Build categories dict from category_results
+        categories = {}
+        probabilities = {}
+        for cat, data in res.get('category_results', {}).items():
+            cat_name = cat.name if hasattr(cat, 'name') else str(cat)
+            categories[cat_name] = data.get('above_threshold', False)
+            probabilities[cat_name] = data.get('score', 0.0)
+        
         payload: Dict[str, Any] = {
             "text": text,
             "is_toxic": res["is_toxic"],
-            "categories": res["categories"],
-            "probabilities": res["probabilities"],
+            "categories": categories,
+            "probabilities": probabilities,
+            "confidence": max_score,
             "timestamp": datetime.now().isoformat(),
         }
         if args.probabilities:
-            payload["raw_probabilities"] = res["raw_probabilities"]
+            payload["raw_probabilities"] = res.get("raw_probabilities", {})
+        # Add confidence explanation to JSON if requested
+        if hasattr(args, 'confidence_explain') and args.confidence_explain:
+            explanation_obj = generate_confidence_explanation(res, text)
+            payload["confidence_explanation"] = explanation_obj
         _emit_json(payload, args.output)
     else:
         _print_human_single(res, args)
@@ -206,20 +682,40 @@ def _print_human_single(res: Dict[str, Any], args: argparse.Namespace) -> None:
     print(f"Result: {verdict}")
 
     if res["is_toxic"]:
-        detected = [c for c, v in res["categories"].items() if v]
+        # Extract category names from category_results where above_threshold is True
+        detected = [
+            cat.name for cat, data in res["category_results"].items() 
+            if data.get("above_threshold", False)
+        ]
         print("Detected categories:", ", ".join(detected))
 
     if args.probabilities:
-        for cat, p in res.get("raw_probabilities", {}).items():
-            print(f"  {cat}: {p:.4f}")
+        # Show scores from category_results
+        for cat, data in res.get("category_results", {}).items():
+            score = data.get("score", 0.0)
+            print(f"  {cat.name}: {score:.4f}")
+    
+    # Add confidence explanation if requested
+    if hasattr(args, 'confidence_explain') and args.confidence_explain:
+        explanation_obj = generate_confidence_explanation(res, res.get('text', ''))
+        _display_confidence_explanation(explanation_obj)
 
 
 # ---------------------------------------------------------------------------
 # JSON helper ----------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
+def _json_serialize(obj):
+    """Custom JSON serializer to handle ToxicityCategory and other non-serializable objects."""
+    if hasattr(obj, 'name'):
+        return obj.name
+    elif hasattr(obj, '__str__'):
+        return str(obj)
+    else:
+        raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
+
 def _emit_json(obj: Any, path: Optional[str] = None) -> None:
-    data = json.dumps(obj, indent=2, ensure_ascii=False)
+    data = json.dumps(obj, indent=2, ensure_ascii=False, default=_json_serialize)
     if path:
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(data)
@@ -323,6 +819,953 @@ def display_single_text_result(result: Dict[str, Any], cfg: Dict[str, Any]) -> N
 
 
 # ---------------------------------------------------------------------------
+# Batch processing helpers ---------------------------------------------------
+# ---------------------------------------------------------------------------
+
+def display_batch_results(results: Dict[str, Any], args: argparse.Namespace) -> None:
+    """Display comprehensive batch processing results with full probability distributions,
+    Groq fallback tracking, and detailed toxicity metrics.
+    
+    Args:
+        results: Dictionary containing batch processing results
+        args: Command line arguments
+    """
+
+    if args.json:
+        return  # Nothing to do – JSON already printed
+
+    total_files = results.get("total_files", 0)
+    toxic_files = results.get("toxic_files", 0)
+    total_sentences = results.get("total_sentences", 0)
+    toxic_sentences = results.get("toxic_sentences", 0)
+    
+    # Get confidence filtering statistics
+    displayed_sentences = results.get("displayed_sentences", total_sentences)
+    filtered_sentences = results.get("filtered_sentences", 0)
+    below_range_sentences = results.get("below_range_sentences", 0)
+    above_range_sentences = results.get("above_range_sentences", 0)
+    
+    # Get enhanced metrics
+    toxicity_metrics = results.get("toxicity_metrics", {})
+    avg_overall_score = toxicity_metrics.get("avg_overall_score", results.get("avg_overall_toxicity", 0.0))
+    max_toxicity_score = toxicity_metrics.get("max_toxicity_score", 0.0)
+    
+    # Get Groq metrics
+    groq_metrics = results.get("groq_metrics", {})
+    total_usage_count = groq_metrics.get("total_usage_count", results.get("groq_fallback_count", 0))
+    override_count = groq_metrics.get("override_count", 0)
+    effectiveness_score = groq_metrics.get("effectiveness_score", 0.0)
+    avg_confidence_improvement = groq_metrics.get("avg_confidence_improvement", 0.0)
+
+    # Calculate percentages
+    file_pct = (toxic_files / total_files * 100.0) if total_files else 0.0
+    sent_pct = (toxic_sentences / total_sentences * 100.0) if total_sentences else 0.0
+    
+    # Determine toxicity level for color coding based on average overall score
+    if avg_overall_score >= 0.7:
+        toxicity_level = "high"
+        color = "red"
+    elif avg_overall_score >= 0.4:
+        toxicity_level = "medium"
+        color = "yellow"
+    elif avg_overall_score >= 0.2:
+        toxicity_level = "low"
+        color = "blue"
+    else:
+        toxicity_level = "minimal"
+        color = "green"
+
+    # Display summary header
+    print("\n" + "=" * 80)
+    print(colorize("BATCH PROCESSING SUMMARY", "blue", bold=True))
+    print("=" * 80)
+    
+    # Display confidence filter settings if any are active
+    confidence_filter_settings = []
+    if hasattr(args, 'confidence_filter') and args.confidence_filter is not None:
+        try:
+            confidence_value = float(args.confidence_filter)
+            confidence_filter_settings.append(f"above {confidence_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_settings.append(f"above {args.confidence_filter}")
+    
+    if hasattr(args, 'min_confidence') and args.min_confidence is not None:
+        try:
+            min_value = float(args.min_confidence)
+            confidence_filter_settings.append(f"above {min_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_settings.append(f"above {args.min_confidence}")
+    
+    if hasattr(args, 'max_confidence') and args.max_confidence is not None:
+        try:
+            max_value = float(args.max_confidence)
+            confidence_filter_settings.append(f"below {max_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_settings.append(f"below {args.max_confidence}")
+    
+    if confidence_filter_settings:
+        filter_desc = " and ".join(confidence_filter_settings)
+        print(colorize(f"Confidence filter: showing results {filter_desc}", "blue", bold=True))
+
+    # Display if confidence explanation is enabled
+    if hasattr(args, 'confidence_explain') and args.confidence_explain:
+        print(colorize("Confidence explanation: Enabled (providing natural language explanations)", "blue", bold=True))
+    
+    # Display if confidence sorting is enabled
+    if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+        print(colorize(f"Confidence sorting: {args.confidence_sort} first", "blue", bold=True))
+        print(f"Results will be sorted by confidence level ({args.confidence_sort} first)")
+
+    # Display overall statistics
+    print(f"Files processed: {total_files}")
+    toxic_files_str = f"Toxic files: {toxic_files}/{total_files} ({file_pct:.1f}%)"
+    print(colorize(toxic_files_str, color, bold=(toxicity_level in ["high", "medium"])))
+
+    # Display sentence statistics with confidence filtering information
+    print(f"\nTotal sentences: {total_sentences}")
+    
+    # Show confidence filtering statistics if applicable
+    has_confidence_filter = (hasattr(args, 'confidence_filter') and args.confidence_filter is not None) or \
+                          (hasattr(args, 'min_confidence') and args.min_confidence is not None) or \
+                          (hasattr(args, 'max_confidence') and args.max_confidence is not None)
+    
+    if has_confidence_filter and filtered_sentences > 0:
+        filtered_percent = (filtered_sentences / total_sentences) * 100
+        print(f"Sentences displayed: {displayed_sentences} ({(100 - filtered_percent):.1f}%)")
+        print(f"Sentences filtered by confidence: {filtered_sentences} ({filtered_percent:.1f}%)")
+        
+        # Show breakdown of range filtering if applicable
+        if below_range_sentences > 0 or above_range_sentences > 0:
+            if below_range_sentences > 0:
+                below_percent = (below_range_sentences / total_sentences) * 100
+                print(f"  - Below minimum confidence: {below_range_sentences} ({below_percent:.1f}%)")
+            if above_range_sentences > 0:
+                above_percent = (above_range_sentences / total_sentences) * 100
+                print(f"  - Above maximum confidence: {above_range_sentences} ({above_percent:.1f}%)")
+    
+    # Calculate toxic percentage based on displayed sentences for consistency
+    effective_sent_pct = (toxic_sentences / displayed_sentences * 100.0) if displayed_sentences else 0.0
+    toxic_sentences_str = f"Toxic sentences: {toxic_sentences}/{displayed_sentences} ({effective_sent_pct:.1f}%)"
+    print(colorize(toxic_sentences_str, color, bold=(toxicity_level in ["high", "medium"])))
+
+    # Display overall toxicity metrics
+    print("\nToxicity Metrics:")
+    print(colorize(f"  Average toxicity score: {avg_overall_score:.4f} - {toxicity_level.upper()}", 
+                  color, bold=(toxicity_level in ["high", "medium"])))
+    print(f"  Maximum toxicity score: {max_toxicity_score:.4f}")
+
+    # Display toxicity distribution if available
+    toxicity_distribution = toxicity_metrics.get("toxicity_distribution", {})
+    if toxicity_distribution and 'mean' in toxicity_distribution:
+        print("\nToxicity Distribution:")
+        print(f"  Mean: {toxicity_distribution.get('mean', 0.0):.4f}")
+        print(f"  Median: {toxicity_distribution.get('median', 0.0):.4f}")
+        
+        if 'percentiles' in toxicity_distribution:
+            percentiles = toxicity_distribution['percentiles']
+            print(f"  75th percentile: {percentiles.get('75th', 0.0):.4f}")
+            print(f"  90th percentile: {percentiles.get('90th', 0.0):.4f}")
+
+    # Display per-category metrics if available
+    per_category_metrics = toxicity_metrics.get("per_category_metrics", {})
+    if per_category_metrics:
+        print("\nCategory Metrics:")
+        for category, metrics in sorted(
+            per_category_metrics.items(), 
+            key=lambda x: x[1].get('avg_score', 0.0),
+            reverse=True
+        ):
+            category_avg = metrics.get('avg_score', 0.0)
+            category_max = metrics.get('max_score', 0.0)
+            
+            category_color = "red" if category_avg >= 0.7 else "yellow" if category_avg >= 0.4 else "blue"
+            print(colorize(f"  {category}: avg={category_avg:.4f}, max={category_max:.4f}", category_color))
+
+    # Display Groq usage metrics
+    if total_usage_count > 0:
+        print("\nGroq API Usage:")
+        print(f"  Total calls: {total_usage_count}")
+        print(f"  Classification changes: {override_count} ({effectiveness_score*100:.1f}% effectiveness)")
+        if avg_confidence_improvement > 0:
+            print(f"  Average confidence improvement: {avg_confidence_improvement:.4f}")
+
+    # Collect category distribution across all files
+    all_categories = {}
+    for file_path, file_result in results.get("file_results", {}).items():
+        for category, count in file_result.get("category_counts", {}).items():
+            all_categories[category] = all_categories.get(category, 0) + count
+
+    if all_categories:
+        print("\nCategory Distribution:")
+        for category, count in sorted(all_categories.items(), key=lambda x: x[1], reverse=True):
+            category_percent = (count / toxic_sentences * 100) if toxic_sentences > 0 else 0
+            print(f"  - {category}: {count} ({category_percent:.1f}% of toxic sentences)")
+
+    # If verbose, display detailed file information
+    if getattr(args, "verbose", False):
+        print("\n" + "=" * 80)
+        print(colorize("FILE DETAILS", "blue", bold=True))
+        print("=" * 80)
+        
+        # Sort files by appropriate criteria
+        sorted_files = []
+        for file_path, file_result in results.get("file_results", {}).items():
+            toxicity_profile = file_result.get('toxicity_profile', {})
+            toxicity_score = toxicity_profile.get('overall_score', file_result.get("overall_toxicity_score", 0.0))
+            
+            # Calculate max confidence for this file if confidence sorting is enabled
+            max_confidence = 0.0
+            if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+                sentences = file_result.get('sentences', [])
+                for sentence in sentences:
+                    if 'category_results' in sentence:
+                        # Handle both category objects and string keys
+                        scores = {}
+                        for cat, data in sentence['category_results'].items():
+                            cat_name = cat.name if hasattr(cat, 'name') else str(cat)
+                            scores[cat_name] = data['score']
+                    else:
+                        scores = sentence.get('probabilities', sentence.get('scores', {}))
+                    sentence_max_score = max(scores.values()) if scores else 0.0
+                    if sentence_max_score > max_confidence:
+                        max_confidence = sentence_max_score
+            
+            sorted_files.append((file_path, file_result, toxicity_score, max_confidence))
+        
+        # Sort according to settings
+        if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+            # Sort by confidence
+            sort_order = SortOrder(args.confidence_sort)
+            sorted_files.sort(
+                key=lambda x: x[3],  # max_confidence
+                reverse=(sort_order == SortOrder.HIGHEST_FIRST)
+            )
+        else:
+            # Default sort by toxicity score, highest first
+            sorted_files.sort(key=lambda x: x[2], reverse=True)
+        
+        # Display details for each file
+        for i, (file_path, file_result, toxicity_score, max_confidence) in enumerate(sorted_files):
+            toxic_sentences = file_result.get("toxic_sentences", 0)
+            total_sentences = file_result.get("total_sentences", 0)
+            sentence_percent = (toxic_sentences / total_sentences * 100) if total_sentences > 0 else 0
+            
+            # Determine color based on toxicity score
+            if toxicity_score >= 0.7:
+                file_color = "red"
+                bold = True
+            elif toxicity_score >= 0.4:
+                file_color = "yellow"
+                bold = True
+            elif toxicity_score >= 0.2:
+                file_color = "blue"
+                bold = False
+            else:
+                file_color = "green"
+                bold = False
+            
+            # Display basic file info
+            print(f"\n{i+1}. {file_path}")
+            print(colorize(f"   Toxicity score: {toxicity_score:.4f}", file_color, bold=bold))
+            
+            # Display max confidence if sorting by confidence
+            if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+                conf_color = "red" if max_confidence >= 0.7 else "yellow" if max_confidence >= 0.5 else "blue"
+                conf_display = colorize(f"{max_confidence:.4f}", conf_color)
+                print(f"   Max confidence: {conf_display}")
+            
+            print(f"   Sentences: {toxic_sentences}/{total_sentences} toxic ({sentence_percent:.1f}%)")
+    
+    print("\n" + "=" * 80)
+    
+    # If output directory was specified, display where results were saved
+    if hasattr(args, 'output') and args.output:
+        print(f"Detailed results saved to: {args.output}")
+        print("  - batch_summary.json: Overall statistics")
+        print("  - toxicity_report.json: Files categorized by toxicity level")
+        print("  - category_distribution.json: Toxicity breakdown by category")
+        print("  - groq_usage_report.json: Detailed Groq API usage statistics")
+        print("  - *.result.json: Detailed results for each processed file")
+        print("=" * 80)
+
+
+def handle_stream_processing(args: argparse.Namespace) -> Dict[str, Any]:
+    """
+    Process text input from stdin in real-time streaming mode.
+    
+    Args:
+        args: Command line arguments containing model, threshold, and display options
+        
+    Returns:
+        Dictionary containing streaming session statistics
+    """
+    print("\n=== Real-time Toxicity Analysis Streaming Mode ===")
+    print("Type text and press Enter for immediate analysis.")
+    print("Press Ctrl+D (or Ctrl+Z on Windows) to end the session.")
+    
+    # Display confidence filter if enabled
+    confidence_filter_info = []
+    if hasattr(args, 'confidence_filter') and args.confidence_filter is not None:
+        try:
+            confidence_value = float(args.confidence_filter)
+            confidence_filter_info.append(f"above {confidence_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_info.append(f"above {args.confidence_filter}")
+    
+    if hasattr(args, 'min_confidence') and args.min_confidence is not None:
+        try:
+            min_value = float(args.min_confidence)
+            confidence_filter_info.append(f"above {min_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_info.append(f"above {args.min_confidence}")
+    
+    if hasattr(args, 'max_confidence') and args.max_confidence is not None:
+        try:
+            max_value = float(args.max_confidence)
+            confidence_filter_info.append(f"below {max_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_info.append(f"below {args.max_confidence}")
+    
+    if confidence_filter_info:
+        filter_desc = " and ".join(confidence_filter_info)
+        print(f"Confidence filter: showing results {filter_desc}")
+    
+    # Show if confidence explanation is enabled
+    if hasattr(args, 'confidence_explain') and args.confidence_explain:
+        print("Confidence explanation: Enabled (providing natural language explanations)")
+    
+    # Show if confidence sorting is enabled
+    if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+        print(f"Confidence sorting: {args.confidence_sort} first")
+        print("Note: In streaming mode, sort applies to summary display")
+        
+    print("=" * 50)
+    
+    # Load model and configuration
+    cfg = load_config()
+    model_name = args.model or cfg.get("model", {}).get("name", "unitary/toxic-bert")
+    
+    # Apply threshold configuration
+    thresholds = cfg.get("thresholds", {})
+    if args.threshold is not None:
+        # Apply global threshold to all categories
+        for cat in ToxicityCategory:
+            thresholds[cat.name] = args.threshold
+    
+    # Apply per-category threshold overrides
+    threshold_overrides = parse_threshold_args(args)
+    if threshold_overrides:
+        thresholds.update(threshold_overrides)
+    
+    # Initialize session statistics
+    stats = {
+        'total_lines': 0,
+        'displayed_lines': 0,  # Track lines that pass confidence filter
+        'filtered_lines': 0,   # Track lines filtered by confidence threshold
+        'below_range_lines': 0,  # Track lines below min confidence
+        'above_range_lines': 0,  # Track lines above max confidence
+        'toxic_lines': 0,
+        'categories': {},
+        'groq_usage': {
+            'total': 0,
+            'overrides': 0
+        },
+        'session_start': datetime.now().isoformat(),
+        'results': []
+    }
+    
+    try:
+        # Main streaming loop
+        while True:
+            try:
+                # Prompt and get input
+                if not args.json and not args.quiet:
+                    prompt = colorize("> ", "blue", bold=True) if supports_color() and not getattr(args, "no_color", False) else "> "
+                    line = input(prompt)
+                else:
+                    line = input()
+                
+                # Skip empty lines
+                if not line.strip():
+                    continue
+                
+                # Process the line
+                stats['total_lines'] += 1
+                
+                # Get toxicity prediction
+                tie_policy_active = args.groq_tie_policy if args.groq_tie_policy is not None else cfg.get("groq", {}).get("tie_policy", "prefer-groq")
+                
+                result = predict_toxicity(
+                    texts=[line],
+                    thresholds=thresholds,
+                    model_name=model_name,
+                    show_progress=False,
+                    allow_groq_fallback=args.allow_groq_fallback,
+                    gray_min=args.groq_lower_bound,
+                    gray_max=args.groq_upper_bound,
+                    tie_policy=tie_policy_active,
+                )[0]
+                
+                # Store result
+                stats['results'].append(result)
+                
+                # Get maximum confidence score for filtering
+                scores = {cat.name: data['score'] for cat, data in result['category_results'].items()}
+                max_score = max(scores.values()) if scores else 0.0
+                
+                # Check if result passes confidence filter
+                passes_filter, filter_reason = check_confidence_filter(max_score, args)
+                
+                if passes_filter:
+                    display_result = True
+                else:
+                    display_result = False
+                    stats['filtered_lines'] += 1
+                    
+                    # Track specific reason for filtering for range filters
+                    if "below minimum" in filter_reason:
+                        stats['below_range_lines'] += 1
+                    elif "above maximum" in filter_reason:
+                        stats['above_range_lines'] += 1
+                
+                # Update statistics for toxic content (regardless of filter)
+                if result['is_toxic']:
+                    stats['toxic_lines'] += 1
+                    
+                    # Update category counts
+                    for category, data in result['category_results'].items():
+                        if data['above_threshold']:
+                            cat_name = category.name
+                            stats['categories'][cat_name] = stats['categories'].get(cat_name, 0) + 1
+                
+                # Track Groq usage
+                if result.get('groq_fallback_used', False):
+                    stats['groq_usage']['total'] += 1
+                    if result.get('groq_changed_classification', False):
+                        stats['groq_usage']['overrides'] += 1
+                
+                # Display the result if it passes confidence filter
+                if display_result:
+                    stats['displayed_lines'] += 1
+                    _display_stream_result(result, stats, args)
+                else:
+                    # Show minimal info for filtered results
+                    if args.verbose:
+                        filter_msg = f"Result filtered (confidence: {max_score:.4f}, {filter_reason})"
+                        print(colorize(filter_msg, "yellow") if supports_color() and not getattr(args, "no_color", False) else filter_msg)
+                        
+                        # Add confidence explanation for filtered results if requested
+                        if hasattr(args, 'confidence_explain') and args.confidence_explain:
+                            explanation_obj = generate_confidence_explanation(result, line)
+                            _display_confidence_explanation(explanation_obj)
+                        
+                        print("-" * 50)
+                
+            except EOFError:
+                # End of input (Ctrl+D)
+                break
+    except KeyboardInterrupt:
+        # Handle Ctrl+C gracefully
+        print("\nStream processing interrupted.")
+    
+    # Display final statistics
+    _display_stream_summary(stats, args)
+    
+    # Add end timestamp
+    stats['session_end'] = datetime.now().isoformat()
+    
+    return stats
+
+
+def _display_stream_result(result: Dict[str, Any], stats: Dict[str, Any], args: argparse.Namespace) -> None:
+    """
+    Display real-time result for a single stream input line.
+    
+    Args:
+        result: Dictionary containing toxicity prediction result
+        stats: Dictionary containing running session statistics
+        args: Command line arguments that may affect display formatting
+    """
+    if args.json:
+        # JSON output mode
+        json_result = {
+            'text': result['text'],
+            'is_toxic': result['is_toxic'],
+            'categories': {
+                cat.name: {
+                    "score": data["score"],
+                    "above_threshold": data["above_threshold"],
+                    "threshold": data["threshold"],
+                }
+                for cat, data in result['category_results'].items()
+            },
+            'scores': {cat.name: data['score'] for cat, data in result['category_results'].items()},
+            'most_probable_category': result['most_probable_category'].name,
+            'timestamp': datetime.now().isoformat()
+        }
+        if result.get('groq_fallback_used', False):
+            json_result['groq_fallback_used'] = True
+            if result.get('groq_changed_classification', False):
+                json_result['groq_changed_classification'] = True
+        
+        # Add confidence explanation to JSON if requested
+        if hasattr(args, 'confidence_explain') and args.confidence_explain:
+            explanation_obj = generate_confidence_explanation(result, result.get('text', ''))
+            json_result['confidence_explanation'] = explanation_obj
+        
+        print(json.dumps(json_result, default=_json_serialize))
+        return
+    
+    # Determine toxicity status and color
+    is_toxic = result.get('is_toxic', False)
+    
+    # Find max score and category
+    max_score = 0.0
+    max_category = None
+    scores = {}
+    for category, data in result.get('category_results', {}).items():
+        scores[category.name] = data['score']
+        if data['score'] > max_score:
+            max_score = data['score']
+            max_category = category.name
+    
+    # Determine color based on max score
+    use_color = supports_color() and not getattr(args, "no_color", False)
+    
+    if max_score >= 0.7:
+        color = "red"
+        status = "HIGH TOXICITY"
+        bold = True
+    elif max_score >= 0.5:
+        color = "red"
+        status = "TOXIC"
+        bold = True
+    elif max_score >= 0.4:
+        color = "yellow"
+        status = "BORDERLINE"
+        bold = True
+    elif max_score >= 0.2:
+        color = "blue"
+        status = "LOW TOXICITY"
+        bold = False
+    else:
+        color = "green"
+        status = "SAFE"
+        bold = False
+    
+    # Display the primary result
+    if use_color:
+        status_display = colorize(status, color, bold=bold)
+    else:
+        status_display = status
+    
+    # Add Groq indicator if used
+    if result.get('groq_fallback_used', False):
+        if result.get('groq_changed_classification', False):
+            groq_indicator = colorize(" (reclassified by Groq)", "yellow", bold=True) if use_color else " (reclassified by Groq)"
+        else:
+            groq_indicator = " (via Groq)"
+        status_display += groq_indicator
+    
+    print(f"Result: {status_display}")
+    
+    # Display confidence
+    use_color = supports_color() and not getattr(args, "no_color", False)
+    if use_color:
+        confidence_display = colorize(f"Confidence: {max_score:.4f}", color, bold=(max_score >= 0.7))
+    else:
+        confidence_display = f"Confidence: {max_score:.4f}"
+    print(f"{confidence_display} (category: {max_category})")
+    
+    # Show top 3 categories with scores
+    if args.verbose or args.probabilities:
+        print("Top categories:")
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        for category, score in sorted_scores:
+            if use_color:
+                category_color = "red" if score >= 0.7 else "yellow" if score >= 0.5 else "blue"
+                score_display = colorize(f'{score:.4f}', category_color)
+            else:
+                score_display = f'{score:.4f}'
+            print(f"  - {category}: {score_display}")
+    elif max_category and max_score >= 0.2:
+        # Just show the top category for non-verbose mode
+        if use_color:
+            category_color = "red" if max_score >= 0.7 else "yellow" if max_score >= 0.5 else "blue"
+            score_display = colorize(f'{max_score:.4f}', category_color)
+        else:
+            score_display = f'{max_score:.4f}'
+        print(f"  Top: {max_category} ({score_display})")
+    
+    # Show running statistics
+    if not args.quiet:
+        total_displayed = stats.get('displayed_lines', stats.get('total_lines', 0))
+        total_filtered = stats.get('filtered_lines', 0)
+        below_range = stats.get('below_range_lines', 0)
+        above_range = stats.get('above_range_lines', 0)
+        toxic_displayed = stats['toxic_lines']
+        
+        # Calculate percentages based on displayed lines
+        toxic_percent = (toxic_displayed / total_displayed) * 100 if total_displayed > 0 else 0
+        
+        stats_text = f"Running stats: {toxic_displayed}/{total_displayed} toxic lines ({toxic_percent:.1f}%)"
+        if total_filtered > 0:
+            filtered_percent = (total_filtered / stats['total_lines']) * 100
+            stats_text += f", {total_filtered} filtered ({filtered_percent:.1f}%)"
+            
+            # Add breakdown of range filtering if applicable
+            if below_range > 0 or above_range > 0:
+                range_details = []
+                if below_range > 0:
+                    range_details.append(f"{below_range} below range")
+                if above_range > 0:
+                    range_details.append(f"{above_range} above range")
+                stats_text += f" [{', '.join(range_details)}]"
+        
+        if use_color:
+            if toxic_percent >= 50:
+                stats_display = colorize(stats_text, "red")
+            elif toxic_percent >= 20:
+                stats_display = colorize(stats_text, "yellow")
+            else:
+                stats_display = colorize(stats_text, "green")
+        else:
+            stats_display = stats_text
+            
+        print(stats_display)
+        
+    # Add confidence explanation if requested
+    if hasattr(args, 'confidence_explain') and args.confidence_explain:
+        explanation_obj = generate_confidence_explanation(result, result.get('text', ''))
+        _display_confidence_explanation(explanation_obj)
+    
+    print("-" * 50)
+
+
+def _display_stream_summary(stats: Dict[str, Any], args: argparse.Namespace) -> None:
+    """
+    Display summary statistics at the end of a streaming session.
+    
+    Args:
+        stats: Dictionary containing session statistics
+        args: Command line arguments that may affect display formatting
+    """
+    total_lines = stats.get('total_lines', 0)
+    displayed_lines = stats.get('displayed_lines', 0)
+    filtered_lines = stats.get('filtered_lines', 0)
+    below_range_lines = stats.get('below_range_lines', 0)
+    above_range_lines = stats.get('above_range_lines', 0)
+    toxic_lines = stats.get('toxic_lines', 0)
+    
+    print("\n" + "=" * 50)
+    header = "STREAMING SESSION SUMMARY"
+    use_color = supports_color() and not getattr(args, "no_color", False)
+    
+    if use_color:
+        print(colorize(header, "blue", bold=True))
+    else:
+        print(header)
+    print("=" * 50)
+    
+    # If no lines were processed
+    if total_lines == 0:
+        print("No text was analyzed during this session.")
+        print("=" * 50)
+        return
+    
+    # Calculate percentages - fallback to total_lines if displayed_lines is not set
+    effective_displayed_lines = displayed_lines if displayed_lines > 0 else total_lines
+    toxic_percent = (toxic_lines / effective_displayed_lines) * 100 if effective_displayed_lines > 0 else 0
+    
+    # Display basic stats
+    print(f"Total lines processed: {total_lines}")
+    
+    # Display confidence filter stats if applicable
+    if filtered_lines > 0:
+        filtered_percent = (filtered_lines / total_lines) * 100
+        print(f"Lines displayed: {displayed_lines} ({(100 - filtered_percent):.1f}%)")
+        print(f"Lines filtered by confidence: {filtered_lines} ({filtered_percent:.1f}%)")
+        
+        # Show breakdown of range filtering if applicable
+        if below_range_lines > 0 or above_range_lines > 0:
+            if below_range_lines > 0:
+                below_percent = (below_range_lines / total_lines) * 100
+                print(f"  - Below minimum confidence: {below_range_lines} ({below_percent:.1f}%)")
+            if above_range_lines > 0:
+                above_percent = (above_range_lines / total_lines) * 100
+                print(f"  - Above maximum confidence: {above_range_lines} ({above_percent:.1f}%)")
+    
+    # Display toxicity stats based on displayed lines
+    toxic_lines_str = f"Toxic lines: {toxic_lines}/{effective_displayed_lines} ({toxic_percent:.1f}%)"
+    
+    if use_color:
+        if toxic_percent >= 50:
+            print(colorize(toxic_lines_str, "red", bold=True))
+        elif toxic_percent >= 20:
+            print(colorize(toxic_lines_str, "yellow", bold=True))
+        elif toxic_percent > 0:
+            print(colorize(toxic_lines_str, "blue"))
+        else:
+            print(colorize(toxic_lines_str, "green"))
+    else:
+        print(toxic_lines_str)
+    
+    # Display category distribution if any toxic lines were found
+    if toxic_lines > 0 and stats.get('categories'):
+        print("\nCategory distribution:")
+        for category, count in sorted(stats['categories'].items(), key=lambda x: x[1], reverse=True):
+            category_percent = (count / toxic_lines) * 100
+            print(f"  - {category}: {count} ({category_percent:.1f}% of toxic lines)")
+    
+    # Display top entries sorted by confidence if requested
+    if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+        results = stats.get('results', [])
+        if results:
+            # Filter to displayed results only (those that passed confidence filter)
+            if filtered_lines > 0:
+                displayed_results = []
+                for res in results:
+                    # Get max confidence from result
+                    if 'category_results' in res:
+                        scores = {cat.name: data['score'] for cat, data in res['category_results'].items()}
+                    else:
+                        scores = res.get('probabilities', res.get('scores', {}))
+                    max_score = max(scores.values()) if scores else 0.0
+                    passes_filter, _ = check_confidence_filter(max_score, args)
+                    if passes_filter:
+                        displayed_results.append(res)
+            else:
+                displayed_results = results
+            
+            # Sort results by confidence (max score)
+            sort_order = SortOrder(args.confidence_sort)
+            sorted_results = sorted(
+                displayed_results,
+                key=lambda x: max((x.get('probabilities', x.get('scores', {})) or {}).values() or [0]),
+                reverse=(sort_order == SortOrder.HIGHEST_FIRST)
+            )
+            
+            # Display top 5 sorted results
+            display_limit = min(5, len(sorted_results))
+            if display_limit > 0:
+                print(f"\nTop {display_limit} entries by confidence ({args.confidence_sort} first):")
+                
+                for i, result in enumerate(sorted_results[:display_limit]):
+                    # Get max score and category
+                    scores = result.get('probabilities', result.get('scores', {}))
+                    max_score = max(scores.values()) if scores else 0.0
+                    max_category = max(scores.items(), key=lambda x: x[1])[0] if scores else None
+                    
+                    # Get truncated text
+                    text = result.get('text', '')
+                    if len(text) > 60:
+                        text = text[:57] + "..."
+                    
+                    # Determine color based on score
+                    if use_color:
+                        if max_score >= 0.7:
+                            score_color = "red"
+                        elif max_score >= 0.5:
+                            score_color = "yellow"
+                        elif max_score >= 0.3:
+                            score_color = "blue"
+                        else:
+                            score_color = "green"
+                        score_display = colorize(f'{max_score:.4f}', score_color)
+                    else:
+                        score_display = f'{max_score:.4f}'
+                    
+                    print(f"{i+1}. {text}")
+                    print(f"   Confidence: {score_display} ({max_category})")
+                    classification = 'TOXIC' if result.get('is_toxic', result.get('toxic', False)) else 'SAFE'
+                    print(f"   Classification: {classification}")
+                    print()
+    
+    # Display Groq usage if any
+    groq_usage = stats.get('groq_usage', {})
+    groq_total = groq_usage.get('total', 0)
+    groq_overrides = groq_usage.get('overrides', 0)
+    
+    if groq_total > 0:
+        groq_percent = (groq_total / total_lines) * 100
+        override_percent = (groq_overrides / groq_total) * 100 if groq_total > 0 else 0
+        
+        print(f"\nGroq API usage:")
+        print(f"  - Used {groq_total} times ({groq_percent:.1f}% of lines)")
+        print(f"  - Changed classification {groq_overrides} times ({override_percent:.1f}% effectiveness)")
+    
+    # Display confidence filter settings if used
+    confidence_filter_settings = []
+    if hasattr(args, 'confidence_filter') and args.confidence_filter is not None:
+        try:
+            confidence_value = float(args.confidence_filter)
+            confidence_filter_settings.append(f"above {confidence_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_settings.append(f"above {args.confidence_filter}")
+    
+    if hasattr(args, 'min_confidence') and args.min_confidence is not None:
+        try:
+            min_value = float(args.min_confidence)
+            confidence_filter_settings.append(f"above {min_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_settings.append(f"above {args.min_confidence}")
+    
+    if hasattr(args, 'max_confidence') and args.max_confidence is not None:
+        try:
+            max_value = float(args.max_confidence)
+            confidence_filter_settings.append(f"below {max_value:.4f}")
+        except (ValueError, TypeError):
+            confidence_filter_settings.append(f"below {args.max_confidence}")
+    
+    if confidence_filter_settings:
+        filter_desc = " and ".join(confidence_filter_settings)
+        print(f"\nConfidence filter applied: {filter_desc}")
+    
+    # Output in JSON format if requested
+    if args.json:
+        json_summary = {
+            'total_lines': total_lines,
+            'displayed_lines': displayed_lines,
+            'filtered_lines': filtered_lines,
+            'below_range_lines': below_range_lines,
+            'above_range_lines': above_range_lines,
+            'toxic_lines': toxic_lines,
+            'toxic_percent': round(toxic_percent, 2),
+            'categories': stats.get('categories', {}),
+            'groq_usage': groq_usage,
+            'session_start': stats.get('session_start'),
+            'session_end': stats.get('session_end')
+        }
+        
+        # Add confidence filter settings to JSON
+        confidence_filters = {}
+        if hasattr(args, 'confidence_filter') and args.confidence_filter is not None:
+            confidence_filters['threshold'] = args.confidence_filter
+        if hasattr(args, 'min_confidence') and args.min_confidence is not None:
+            confidence_filters['min_confidence'] = args.min_confidence
+        if hasattr(args, 'max_confidence') and args.max_confidence is not None:
+            confidence_filters['max_confidence'] = args.max_confidence
+        
+        if confidence_filters:
+            json_summary['confidence_filters'] = confidence_filters
+            
+        # Add confidence sort setting to JSON
+        if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+            json_summary['confidence_sort'] = args.confidence_sort
+            
+            # Add sorted results if sorting is enabled
+            if results:
+                # Filter to displayed results only
+                if filtered_lines > 0:
+                    displayed_results = []
+                    for res in results:
+                        # Get max confidence from result
+                        if 'category_results' in res:
+                            scores = {cat.name: data['score'] for cat, data in res['category_results'].items()}
+                        else:
+                            scores = res.get('probabilities', res.get('scores', {}))
+                        max_score = max(scores.values()) if scores else 0.0
+                        passes_filter, _ = check_confidence_filter(max_score, args)
+                        if passes_filter:
+                            displayed_results.append(res)
+                else:
+                    displayed_results = results
+                
+                # Sort results by confidence (max score)
+                sort_order = SortOrder(args.confidence_sort)
+                sorted_results = sorted(
+                    displayed_results,
+                    key=lambda x: max((x.get('probabilities', x.get('scores', {})) or {}).values() or [0]),
+                    reverse=(sort_order == SortOrder.HIGHEST_FIRST)
+                )
+                
+                # Add top 10 results to JSON
+                json_summary['sorted_results'] = sorted_results[:10]
+            
+        print("\nJSON Summary:")
+        print(json.dumps(json_summary, indent=2, default=_json_serialize))
+    
+    # Note about confidence explanation if enabled
+    if hasattr(args, 'confidence_explain') and args.confidence_explain:
+        print("\nConfidence explanation was enabled for this session")
+    
+    # Note about confidence sorting if enabled
+    if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+        print(f"\nResults sorted by confidence: {args.confidence_sort} first")
+    
+    print("=" * 50)
+
+
+def handle_batch_processing(args: argparse.Namespace) -> Dict[str, Any]:
+    """Entry-point used by the CLI when ``--batch`` is supplied.  The helper
+    validates *args*, delegates actual work to
+    :pyfunc:`batch_processor.batch_process`, dumps JSON or human readable
+    output, then returns the results so tests/integration code can inspect
+    them programmatically.
+    """
+
+    # ------------------------------------------------------------------
+    # Validate paths ----------------------------------------------------
+    # ------------------------------------------------------------------
+    input_path = Path(args.batch)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input path does not exist: {input_path}")
+
+    output_path: Optional[Path] = None
+    if getattr(args, "output", None):
+        output_path = Path(args.output)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Delegate to processing layer -------------------------------------
+    # ------------------------------------------------------------------
+    model_obj = load_model(model_name=args.model or "unitary/toxic-bert")
+    cfg = load_config()
+
+    selected_categories = getattr(args, "categories", None)
+
+    # Add confidence filter settings to config
+    confidence_config = {}
+    if hasattr(args, 'confidence_filter') and args.confidence_filter is not None:
+        confidence_config['confidence_filter'] = args.confidence_filter
+    if hasattr(args, 'min_confidence') and args.min_confidence is not None:
+        confidence_config['min_confidence'] = args.min_confidence
+    if hasattr(args, 'max_confidence') and args.max_confidence is not None:
+        confidence_config['max_confidence'] = args.max_confidence
+    
+    if confidence_config:
+        cfg['confidence_filtering'] = confidence_config
+
+    # Add confidence explanation setting to config
+    if hasattr(args, 'confidence_explain') and args.confidence_explain:
+        cfg['confidence_explain'] = True
+
+    # Add confidence sorting setting to config
+    if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
+        cfg['confidence_sort'] = args.confidence_sort
+
+    results = batch_process(
+        input_path=input_path,
+        output_path=output_path,
+        model=model_obj,
+        config=cfg,
+        show_progress=not getattr(args, "json", False) and not getattr(args, "quiet", False),
+        selected_categories=selected_categories,
+    )
+
+    # Timestamp for traceability ---------------------------------------
+    results["timestamp"] = datetime.now().isoformat(timespec="seconds")
+
+    # Emit results ------------------------------------------------------
+    if getattr(args, "json", False):
+        _emit_json(results, path=args.output if (output_path is None and getattr(args, "output", None)) else None)
+    else:
+        display_batch_results(results, args)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Main -----------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -374,6 +1817,24 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: C901 – clarity
         if args.groq_lower_bound >= args.groq_upper_bound:
             parser.error("--groq-lower-bound must be smaller than --groq-upper-bound")
 
+    if args.confidence_filter is not None and not (0.0 <= args.confidence_filter <= 1.0):
+        parser.error("--confidence-filter must be between 0.0 and 1.0")
+
+    if args.min_confidence is not None and not (0.0 <= args.min_confidence <= 1.0):
+        parser.error("--min-confidence must be between 0.0 and 1.0")
+    
+    if args.max_confidence is not None and not (0.0 <= args.max_confidence <= 1.0):
+        parser.error("--max-confidence must be between 0.0 and 1.0")
+    
+    if (args.min_confidence is not None and args.max_confidence is not None and 
+        args.min_confidence >= args.max_confidence):
+        parser.error("--min-confidence must be less than --max-confidence")
+    
+    # Check for conflicting confidence options
+    confidence_options = [args.confidence_filter, args.min_confidence, args.max_confidence]
+    if args.confidence_filter is not None and (args.min_confidence is not None or args.max_confidence is not None):
+        parser.error("--confidence-filter cannot be used with --min-confidence or --max-confidence")
+
     # ---------------------------------------------------------------------
     # Groq cache maintenance / info commands -----------------------------
     # ---------------------------------------------------------------------
@@ -412,17 +1873,8 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: C901 – clarity
         return 0
 
     if args.text:
-        res = predict_toxicity(
-            texts=[args.text],
-            thresholds=cfg.get("thresholds"),
-            model_name=args.model or cfg.get("model", {}).get("name", "unitary/toxic-bert"),
-            show_progress=False,
-            allow_groq_fallback=args.allow_groq_fallback,
-            gray_min=args.groq_lower_bound,
-            gray_max=args.groq_upper_bound,
-            tie_policy=args.groq_tie_policy if args.groq_tie_policy is not None else cfg.get("groq", {}).get("tie_policy", "prefer-groq"),
-        )[0]
-        display_single_text_result(res, cfg)
+        # Use _process_single to support confidence filtering
+        res = _process_single(args.text, cfg=cfg, args=args)
         return 0
 
     if args.file:
@@ -439,12 +1891,23 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: C901 – clarity
         return 0
 
     if args.create_config:
+        from config_loader import create_default_config
         path = create_default_config(Path("toxicity_detector.yaml"))
         print(f"Default configuration file written to {path}")
         return 0
 
-    return 0
+    if args.batch:
+        handle_batch_processing(args)
+        return 0
+    
+    if args.stream:
+        handle_stream_processing(args)
+        return 0
+
+    # Default: show help if no command specified
+    parser.print_help()
+    return 1
 
 
-if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main()) 
+if __name__ == "__main__":
+    exit(main())
