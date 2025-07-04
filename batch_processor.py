@@ -50,12 +50,22 @@ def batch_process(
     config: Dict[str, Any] | None = None,
     show_progress: bool = True,
     selected_categories: Optional[List[str]] = None,
+    monitor: Any = None,
 ) -> Dict[str, Any]:
     """Process *input_path* (file or directory) and return aggregate results.
 
     The function processes files sentence-by-sentence using real model inference
     with optimized batch processing. Results include full probability distributions,
     Groq fallback tracking, and file-level toxicity scoring.
+    
+    Args:
+        input_path: Path to file or directory to process
+        output_path: Optional path to write results
+        model: Model to use for predictions
+        config: Configuration dictionary
+        show_progress: Whether to display progress bar
+        selected_categories: Categories to include in output
+        monitor: Optional monitoring context for real-time metrics
     """
 
     inp = Path(input_path)
@@ -95,6 +105,15 @@ def batch_process(
         "timestamp": time.time(),
     }
 
+    # Initialize monitoring if provided
+    if monitor:
+        monitor.update({
+            "processed_files": 0,
+            "processed_texts": 0,
+            "toxic_texts": 0,
+            "error_count": 0
+        })
+
     if show_progress and total:
         print(f"Processing {total} file(s)…")
 
@@ -110,10 +129,23 @@ def batch_process(
             selected_categories=selected_categories,
             results_parent=results,
             show_progress=show_progress,
+            monitor=monitor,
         )
         results["file_results"][str(fp)] = file_res
         if file_res.get("toxic"):
             results["toxic_files"] += 1
+        
+        # Update monitoring with per-file metrics
+        if monitor:
+            file_metrics = {
+                "processed_files": 1,
+                "processed_texts": file_res.get("total_sentences", 0),
+                "toxic_texts": file_res.get("toxic_sentences", 0),
+                "processed_bytes": fp.stat().st_size if fp.exists() else 0,
+                "api_calls": file_res.get("groq_usage", {}).get("count", 0),
+                "api_errors": file_res.get("groq_usage", {}).get("errors", 0)
+            }
+            monitor.update(file_metrics)
 
     if show_progress and total:
         print()  # newline after progress bar
@@ -273,6 +305,7 @@ def _process_single_file(
     selected_categories: Optional[List[str]] = None,
     results_parent: Optional[Dict[str, Any]] = None,
     show_progress: bool = True,
+    monitor: Any = None,
 ) -> Dict[str, Any]:
     """Analyse *fp* sentence-by-sentence using batched processing and return a rich result map.
 
@@ -339,7 +372,7 @@ def _process_single_file(
         batch = sentences[i:i+BATCH_SIZE]
         
         # Process batch using real model
-        batch_results = _predict_toxicity_batch(batch, model=model, config=config, selected_categories=selected_categories)
+        batch_results = _predict_toxicity_batch(batch, model=model, config=config, selected_categories=selected_categories, monitor=monitor)
         
         # Process results for each sentence in the batch
         for j, sentence_result in enumerate(batch_results):
@@ -455,17 +488,28 @@ def _predict_toxicity_batch(
     model: Any = None,
     config: Dict[str, Any] | None = None,
     selected_categories: Optional[List[str]] = None,
+    monitor: Any = None,
 ) -> List[Dict[str, Any]]:
     """Predict toxicity for a batch of sentences using real model inference.
 
     Processes multiple sentences in a single model call for efficiency while
     preserving all detailed statistics and Groq fallback tracking.
+    
+    Args:
+        sentences: List of sentences to process
+        model: Model to use for predictions
+        config: Configuration dictionary
+        selected_categories: Categories to include in output
+        monitor: Optional monitoring context
     """
     if not sentences:
         return []
     
     if config is None:
         config = {}
+
+    # Record start time for latency tracking
+    start_time = time.time()
 
     # Import model_loader to use the real prediction function
     from model_loader import predict_toxicity
@@ -540,10 +584,42 @@ def _predict_toxicity_batch(
                 "tie_source": result.get("tie_source"),
             })
         
+        # Record end time and calculate latency
+        end_time = time.time()
+        latency = (end_time - start_time) / len(sentences)  # Per-sentence average latency
+        
+        # Update monitoring with per-batch metrics
+        if monitor:
+            # Extract confidence values and categories
+            confidences = []
+            categories = []
+            
+            for result in batch_results:
+                # Get highest confidence score
+                if "scores" in result:
+                    max_confidence = max(result["scores"].values()) if result["scores"] else 0.0
+                    confidences.append(max_confidence)
+                    
+                    # Get predicted categories (those above threshold)
+                    threshold = config.get("threshold", 0.5)
+                    pred_categories = [cat for cat, score in result["scores"].items() if score >= threshold]
+                    categories.extend(pred_categories)
+            
+            # Update monitoring with batch metrics
+            monitor.update({
+                "processed_texts": len(sentences),
+                "latency": latency,
+                "confidence_values": confidences,  # List of confidence values
+                "categories": categories  # List of predicted categories
+            })
+        
         return batch_results
         
     except Exception as e:
         logger.error(f"Error in batch prediction: {str(e)}")
+        # Update monitoring with error count
+        if monitor:
+            monitor.update({"error_count": len(sentences)})
         # Fallback to stub behavior if real model fails
         return _predict_toxicity_batch_fallback(sentences, selected_categories)
 

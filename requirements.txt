@@ -4,3 +4,7 @@ evaluate>=0.4.0
 transformers>=4.40.0
 torch>=2.2.0
 tqdm>=4.66.0
+reportlab
+scipy
+rich>=14.0.0
+psutil>=7.0.0
