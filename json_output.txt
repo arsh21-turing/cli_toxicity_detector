@@ -1,0 +1,1057 @@
+[32m2025-07-03 18:44:35 - INFO - Initialised ToxicityModel(model=unitary/toxic-bert, device=cuda)[0m
+[32m2025-07-03 18:44:35 - INFO - Loading model unitary/toxic-bert[0m
+Device set to use cuda:0
+[32m2025-07-03 18:44:36 - INFO - Model loaded and ready.[0m
+test_sample.txt                1/9 toxic sentences (11.1%) | Overall: 0.168 (LOW) | Conf: 0.84
+{
+  "total_files": 1,
+  "toxic_files": 1,
+  "total_sentences": 9,
+  "toxic_sentences": 1,
+  "toxicity_metrics": {
+    "avg_overall_score": 0.168,
+    "max_toxicity_score": 0.168,
+    "toxicity_distribution": {
+      "min": 0.168,
+      "max": 0.168,
+      "mean": 0.168,
+      "median": 0.168
+    },
+    "per_category_metrics": {
+      "INSULT": {
+        "avg_score": 0.168,
+        "max_score": 0.168,
+        "min_score": 0.168,
+        "mean": 0.168
+      },
+      "HATE": {
+        "avg_score": 0.0034,
+        "max_score": 0.0034,
+        "min_score": 0.0034,
+        "mean": 0.0034
+      },
+      "OBSCENE": {
+        "avg_score": 0.0581,
+        "max_score": 0.0581,
+        "min_score": 0.0581,
+        "mean": 0.0581
+      },
+      "THREAT": {
+        "avg_score": 0.0007,
+        "max_score": 0.0007,
+        "min_score": 0.0007,
+        "mean": 0.0007
+      },
+      "SEXUAL": {
+        "avg_score": 0.0708,
+        "max_score": 0.0708,
+        "min_score": 0.0708,
+        "mean": 0.0708
+      },
+      "SELF_HARM": {
+        "avg_score": 0.0021,
+        "max_score": 0.0021,
+        "min_score": 0.0021,
+        "mean": 0.0021
+      }
+    }
+  },
+  "groq_metrics": {
+    "total_usage_count": 0,
+    "override_count": 0,
+    "effectiveness_score": 0.0,
+    "avg_confidence_improvement": 0.0
+  },
+  "file_results": {
+    "test_sample.txt": {
+      "toxic": true,
+      "total_sentences": 9,
+      "toxic_sentences": 1,
+      "category_counts": {
+        "INSULT": 1,
+        "OBSCENE": 1,
+        "SEXUAL": 1
+      },
+      "groq_usage": {
+        "count": 0,
+        "override_count": 0,
+        "effectiveness": 0.0,
+        "avg_confidence_lift": 0.0
+      },
+      "sentences": [
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.0007118202676806019,
+            "HATE": 0.00011386824025139,
+            "OBSCENE": 0.00017674850868583316,
+            "THREAT": 0.00011157358123361568,
+            "SEXUAL": 0.00017741935087919127,
+            "SELF_HARM": 0.00013622897415730748,
+            "NON_TOXIC": 0.9992881797323194
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.9993,
+              "1": 0.0007
+            },
+            "HATE": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "OBSCENE": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "THREAT": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "SEXUAL": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SELF_HARM": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "NON_TOXIC": {
+              "0": 0.0007,
+              "1": 0.9993
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.0007118202676806019,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.00011386824025139,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.00017674850868583316,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.00011157358123361568,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.00017741935087919127,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.00013622897415730748,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.9992881797323194,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -7.246973037719727,
+            -9.080354690551758,
+            -8.640605926513672,
+            -9.100714683532715,
+            -8.63681697845459,
+            -8.901037216186523
+          ],
+          "sigmoid_scores": [
+            0.0007118202676806019,
+            0.00011386824025139,
+            0.00017674850868583316,
+            0.00011157358123361568,
+            0.00017741935087919127,
+            0.00013622897415730748
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "This is a normal sentence for testing."
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.000575514722959498,
+            "HATE": 0.0001354734974601833,
+            "OBSCENE": 0.00019580945293897977,
+            "THREAT": 0.00013590720178703085,
+            "SEXUAL": 0.00018479953892305817,
+            "SELF_HARM": 0.00015005888063937726,
+            "NON_TOXIC": 0.9994244852770405
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.9994,
+              "1": 0.0006
+            },
+            "HATE": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "OBSCENE": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "THREAT": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "SEXUAL": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SELF_HARM": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "NON_TOXIC": {
+              "0": 0.0006,
+              "1": 0.9994
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.000575514722959498,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.0001354734974601833,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.00019580945293897977,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.00013590720178703085,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.00018479953892305817,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.00015005888063937726,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.9994244852770405,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -7.459670066833496,
+            -8.906599044799805,
+            -8.538172721862793,
+            -8.903402328491211,
+            -8.596054077148438,
+            -8.804332733154297
+          ],
+          "sigmoid_scores": [
+            0.000575514722959498,
+            0.0001354734974601833,
+            0.00019580945293897977,
+            0.00013590720178703085,
+            0.00018479953892305817,
+            0.00015005888063937726
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "This document contains mixed content."
+        },
+        {
+          "toxic": true,
+          "is_toxic": true,
+          "scores": {
+            "INSULT": 0.9885738537921743,
+            "HATE": 0.04442004548632572,
+            "OBSCENE": 0.7825482733934175,
+            "THREAT": 0.0012891754003246578,
+            "SEXUAL": 0.9571116660580739,
+            "SELF_HARM": 0.013496453934283482,
+            "NON_TOXIC": 0.011426146207825671
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.0114,
+              "1": 0.9886
+            },
+            "HATE": {
+              "0": 0.9556,
+              "1": 0.0444
+            },
+            "OBSCENE": {
+              "0": 0.2175,
+              "1": 0.7825
+            },
+            "THREAT": {
+              "0": 0.9987,
+              "1": 0.0013
+            },
+            "SEXUAL": {
+              "0": 0.0429,
+              "1": 0.9571
+            },
+            "SELF_HARM": {
+              "0": 0.9865,
+              "1": 0.0135
+            },
+            "NON_TOXIC": {
+              "0": 0.9886,
+              "1": 0.0114
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.9885738537921743,
+              "above_threshold": true,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.04442004548632572,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.7825482733934175,
+              "above_threshold": true,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.0012891754003246578,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.9571116660580739,
+              "above_threshold": true,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.013496453934283482,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.011426146207825671,
+              "above_threshold": false,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "INSULT",
+          "raw_logits": [
+            4.4603590965271,
+            -3.0686275959014893,
+            1.2805787324905396,
+            -6.652462482452393,
+            3.1053202152252197,
+            -4.2917399406433105
+          ],
+          "sigmoid_scores": [
+            0.9885738537921743,
+            0.04442004548632572,
+            0.7825482733934175,
+            0.0012891754003246578,
+            0.9571116660580739,
+            0.013496453934283482
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "You are such an idiot!"
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.38441501844454706,
+            "HATE": 0.0005627493298136255,
+            "OBSCENE": 0.0041914587353514,
+            "THREAT": 0.0024278366468590174,
+            "SEXUAL": 0.0037701156964438523,
+            "SELF_HARM": 0.0034965018174242185,
+            "NON_TOXIC": 0.6155849815554529
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.6156,
+              "1": 0.3844
+            },
+            "HATE": {
+              "0": 0.9994,
+              "1": 0.0006
+            },
+            "OBSCENE": {
+              "0": 0.9958,
+              "1": 0.0042
+            },
+            "THREAT": {
+              "0": 0.9976,
+              "1": 0.0024
+            },
+            "SEXUAL": {
+              "0": 0.9962,
+              "1": 0.0038
+            },
+            "SELF_HARM": {
+              "0": 0.9965,
+              "1": 0.0035
+            },
+            "NON_TOXIC": {
+              "0": 0.3844,
+              "1": 0.6156
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.38441501844454706,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.0005627493298136255,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.0041914587353514,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.0024278366468590174,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.0037701156964438523,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.0034965018174242185,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.6155849815554529,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -0.47085025906562805,
+            -7.482113361358643,
+            -5.470506191253662,
+            -6.01832389831543,
+            -5.5768723487854,
+            -5.65248966217041
+          ],
+          "sigmoid_scores": [
+            0.38441501844454706,
+            0.0005627493298136255,
+            0.0041914587353514,
+            0.0024278366468590174,
+            0.0037701156964438523,
+            0.0034965018174242185
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "This toxic sentence contains hate speech."
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.0007708766149877847,
+            "HATE": 0.00011172231126737383,
+            "OBSCENE": 0.00018536249164211502,
+            "THREAT": 0.00010316132275131165,
+            "SEXUAL": 0.00018687233313118646,
+            "SELF_HARM": 0.00013591951373589925,
+            "NON_TOXIC": 0.9992291233850122
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.9992,
+              "1": 0.0008
+            },
+            "HATE": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "OBSCENE": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "THREAT": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "SEXUAL": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SELF_HARM": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "NON_TOXIC": {
+              "0": 0.0008,
+              "1": 0.9992
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.0007708766149877847,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.00011172231126737383,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.00018536249164211502,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.00010316132275131165,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.00018687233313118646,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.00013591951373589925,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.9992291233850122,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -7.167211055755615,
+            -9.099382400512695,
+            -8.593011856079102,
+            -9.179113388061523,
+            -8.584897994995117,
+            -8.903311729431152
+          ],
+          "sigmoid_scores": [
+            0.0007708766149877847,
+            0.00011172231126737383,
+            0.00018536249164211502,
+            0.00010316132275131165,
+            0.00018687233313118646,
+            0.00013591951373589925
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "Another normal sentence here."
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.0005789254437262362,
+            "HATE": 0.00012903086299330556,
+            "OBSCENE": 0.00018128719411080862,
+            "THREAT": 0.0001259855269910488,
+            "SEXUAL": 0.00018236834460416554,
+            "SELF_HARM": 0.00014794874469785152,
+            "NON_TOXIC": 0.9994210745562737
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.9994,
+              "1": 0.0006
+            },
+            "HATE": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "OBSCENE": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "THREAT": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "SEXUAL": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SELF_HARM": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "NON_TOXIC": {
+              "0": 0.0006,
+              "1": 0.9994
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.0005789254437262362,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.00012903086299330556,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.00018128719411080862,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.0001259855269910488,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.00018236834460416554,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.00014794874469785152,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.9994210745562737,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -7.4537577629089355,
+            -8.955329895019531,
+            -8.615246772766113,
+            -8.979217529296875,
+            -8.609299659729004,
+            -8.818496704101562
+          ],
+          "sigmoid_scores": [
+            0.0005789254437262362,
+            0.00012903086299330556,
+            0.00018128719411080862,
+            0.0001259855269910488,
+            0.00018236834460416554,
+            0.00014794874469785152
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "The weather is nice today."
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.30411375943094826,
+            "HATE": 0.0004372543675396579,
+            "OBSCENE": 0.0024854099045201264,
+            "THREAT": 0.001811922135445847,
+            "SEXUAL": 0.0031524160694551984,
+            "SELF_HARM": 0.0038183463556387357,
+            "NON_TOXIC": 0.6958862405690518
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.6959,
+              "1": 0.3041
+            },
+            "HATE": {
+              "0": 0.9996,
+              "1": 0.0004
+            },
+            "OBSCENE": {
+              "0": 0.9975,
+              "1": 0.0025
+            },
+            "THREAT": {
+              "0": 0.9982,
+              "1": 0.0018
+            },
+            "SEXUAL": {
+              "0": 0.9968,
+              "1": 0.0032
+            },
+            "SELF_HARM": {
+              "0": 0.9962,
+              "1": 0.0038
+            },
+            "NON_TOXIC": {
+              "0": 0.3041,
+              "1": 0.6959
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.30411375943094826,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.0004372543675396579,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.0024854099045201264,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.001811922135445847,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.0031524160694551984,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.0038183463556387357,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.6958862405690518,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -0.8277843594551086,
+            -7.73455810546875,
+            -5.994829177856445,
+            -6.311553478240967,
+            -5.7564287185668945,
+            -5.564112186431885
+          ],
+          "sigmoid_scores": [
+            0.30411375943094826,
+            0.0004372543675396579,
+            0.0024854099045201264,
+            0.001811922135445847,
+            0.0031524160694551984,
+            0.0038183463556387357
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "Some more hate speech that is really toxic."
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.001856322904499598,
+            "HATE": 0.0001280211277606524,
+            "OBSCENE": 0.000222800520777929,
+            "THREAT": 0.0002029958663725056,
+            "SEXUAL": 0.00023035841978324395,
+            "SELF_HARM": 0.0002472939328831112,
+            "NON_TOXIC": 0.9981436770955004
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.9981,
+              "1": 0.0019
+            },
+            "HATE": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "OBSCENE": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "THREAT": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SEXUAL": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SELF_HARM": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "NON_TOXIC": {
+              "0": 0.0019,
+              "1": 0.9981
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.001856322904499598,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.0001280211277606524,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.000222800520777929,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.0002029958663725056,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.00023035841978324395,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.0002472939328831112,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.9981436770955004,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -6.287299633026123,
+            -8.963187217712402,
+            -8.409010887145996,
+            -8.502121925354004,
+            -8.375643730163574,
+            -8.304685592651367
+          ],
+          "sigmoid_scores": [
+            0.001856322904499598,
+            0.0001280211277606524,
+            0.000222800520777929,
+            0.0002029958663725056,
+            0.00023035841978324395,
+            0.0002472939328831112
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "This should be flagged."
+        },
+        {
+          "toxic": false,
+          "is_toxic": false,
+          "scores": {
+            "INSULT": 0.0007050651557466655,
+            "HATE": 0.00011397143879045843,
+            "OBSCENE": 0.00017282037129015074,
+            "THREAT": 0.00011543631298503201,
+            "SEXUAL": 0.00018722475267622419,
+            "SELF_HARM": 0.00014021874896259578,
+            "NON_TOXIC": 0.9992949348442534
+          },
+          "probabilities": {
+            "INSULT": {
+              "0": 0.9993,
+              "1": 0.0007
+            },
+            "HATE": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "OBSCENE": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "THREAT": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "SEXUAL": {
+              "0": 0.9998,
+              "1": 0.0002
+            },
+            "SELF_HARM": {
+              "0": 0.9999,
+              "1": 0.0001
+            },
+            "NON_TOXIC": {
+              "0": 0.0007,
+              "1": 0.9993
+            }
+          },
+          "category_results": {
+            "INSULT": {
+              "score": 0.0007050651557466655,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "HATE": {
+              "score": 0.00011397143879045843,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "OBSCENE": {
+              "score": 0.00017282037129015074,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "THREAT": {
+              "score": 0.00011543631298503201,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SEXUAL": {
+              "score": 0.00018722475267622419,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "SELF_HARM": {
+              "score": 0.00014021874896259578,
+              "above_threshold": false,
+              "threshold": 0.6
+            },
+            "NON_TOXIC": {
+              "score": 0.9992949348442534,
+              "above_threshold": true,
+              "threshold": 0.6
+            }
+          },
+          "groq_used": false,
+          "most_probable_category": "NON_TOXIC",
+          "raw_logits": [
+            -7.256515026092529,
+            -9.079448699951172,
+            -8.663084983825684,
+            -9.066676139831543,
+            -8.583013534545898,
+            -8.872166633605957
+          ],
+          "sigmoid_scores": [
+            0.0007050651557466655,
+            0.00011397143879045843,
+            0.00017282037129015074,
+            0.00011543631298503201,
+            0.00018722475267622419,
+            0.00014021874896259578
+          ],
+          "gray_zone_bounds": [
+            0.4,
+            0.6
+          ],
+          "tie_policy": "prefer-groq",
+          "tie_source": "local",
+          "text": "Final normal sentence to complete the test."
+        }
+      ],
+      "toxicity_profile": {
+        "overall_score": 0.168,
+        "category_scores": {
+          "INSULT": 0.168,
+          "HATE": 0.0034,
+          "OBSCENE": 0.0581,
+          "THREAT": 0.0007,
+          "SEXUAL": 0.0708,
+          "SELF_HARM": 0.0021
+        },
+        "confidence": 0.8433,
+        "distribution": {
+          "min": 0.0006,
+          "max": 0.9886,
+          "mean": 0.1869,
+          "median": 0.0008,
+          "percentiles": {
+            "25th": 0.0007,
+            "75th": 0.3041,
+            "90th": 0.5052
+          },
+          "std_dev": 0.336
+        }
+      },
+      "overall_toxicity_score": 0.168
+    }
+  },
+  "timestamp": "2025-07-03T18:44:36"
+}
+{'total_files': 1, 'toxic_files': 1, 'total_sentences': 9, 'toxic_sentences': 1, 'toxicity_metrics': {'avg_overall_score': 0.168, 'max_toxicity_score': 0.168, 'toxicity_distribution': {'min': 0.168, 'max': 0.168, 'mean': 0.168, 'median': 0.168}, 'per_category_metrics': {'INSULT': {'avg_score': 0.168, 'max_score': 0.168, 'min_score': 0.168, 'mean': 0.168}, 'HATE': {'avg_score': 0.0034, 'max_score': 0.0034, 'min_score': 0.0034, 'mean': 0.0034}, 'OBSCENE': {'avg_score': 0.0581, 'max_score': 0.0581, 'min_score': 0.0581, 'mean': 0.0581}, 'THREAT': {'avg_score': 0.0007, 'max_score': 0.0007, 'min_score': 0.0007, 'mean': 0.0007}, 'SEXUAL': {'avg_score': 0.0708, 'max_score': 0.0708, 'min_score': 0.0708, 'mean': 0.0708}, 'SELF_HARM': {'avg_score': 0.0021, 'max_score': 0.0021, 'min_score': 0.0021, 'mean': 0.0021}}}, 'groq_metrics': {'total_usage_count': 0, 'override_count': 0, 'effectiveness_score': 0.0, 'avg_confidence_improvement': 0.0}, 'file_results': {'test_sample.txt': {'toxic': True, 'total_sentences': 9, 'toxic_sentences': 1, 'category_counts': {'INSULT': 1, 'OBSCENE': 1, 'SEXUAL': 1}, 'groq_usage': {'count': 0, 'override_count': 0, 'effectiveness': 0.0, 'avg_confidence_lift': 0.0}, 'sentences': [{'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.0007118202676806019, 'HATE': 0.00011386824025139, 'OBSCENE': 0.00017674850868583316, 'THREAT': 0.00011157358123361568, 'SEXUAL': 0.00017741935087919127, 'SELF_HARM': 0.00013622897415730748, 'NON_TOXIC': 0.9992881797323194}, 'probabilities': {'INSULT': {'0': 0.9993, '1': 0.0007}, 'HATE': {'0': 0.9999, '1': 0.0001}, 'OBSCENE': {'0': 0.9998, '1': 0.0002}, 'THREAT': {'0': 0.9999, '1': 0.0001}, 'SEXUAL': {'0': 0.9998, '1': 0.0002}, 'SELF_HARM': {'0': 0.9999, '1': 0.0001}, 'NON_TOXIC': {'0': 0.0007, '1': 0.9993}}, 'category_results': {'INSULT': {'score': 0.0007118202676806019, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.00011386824025139, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.00017674850868583316, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.00011157358123361568, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.00017741935087919127, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.00013622897415730748, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.9992881797323194, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-7.246973037719727, -9.080354690551758, -8.640605926513672, -9.100714683532715, -8.63681697845459, -8.901037216186523], 'sigmoid_scores': [0.0007118202676806019, 0.00011386824025139, 0.00017674850868583316, 0.00011157358123361568, 0.00017741935087919127, 0.00013622897415730748], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'This is a normal sentence for testing.'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.000575514722959498, 'HATE': 0.0001354734974601833, 'OBSCENE': 0.00019580945293897977, 'THREAT': 0.00013590720178703085, 'SEXUAL': 0.00018479953892305817, 'SELF_HARM': 0.00015005888063937726, 'NON_TOXIC': 0.9994244852770405}, 'probabilities': {'INSULT': {'0': 0.9994, '1': 0.0006}, 'HATE': {'0': 0.9999, '1': 0.0001}, 'OBSCENE': {'0': 0.9998, '1': 0.0002}, 'THREAT': {'0': 0.9999, '1': 0.0001}, 'SEXUAL': {'0': 0.9998, '1': 0.0002}, 'SELF_HARM': {'0': 0.9998, '1': 0.0002}, 'NON_TOXIC': {'0': 0.0006, '1': 0.9994}}, 'category_results': {'INSULT': {'score': 0.000575514722959498, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.0001354734974601833, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.00019580945293897977, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.00013590720178703085, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.00018479953892305817, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.00015005888063937726, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.9994244852770405, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-7.459670066833496, -8.906599044799805, -8.538172721862793, -8.903402328491211, -8.596054077148438, -8.804332733154297], 'sigmoid_scores': [0.000575514722959498, 0.0001354734974601833, 0.00019580945293897977, 0.00013590720178703085, 0.00018479953892305817, 0.00015005888063937726], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'This document contains mixed content.'}, {'toxic': True, 'is_toxic': True, 'scores': {'INSULT': 0.9885738537921743, 'HATE': 0.04442004548632572, 'OBSCENE': 0.7825482733934175, 'THREAT': 0.0012891754003246578, 'SEXUAL': 0.9571116660580739, 'SELF_HARM': 0.013496453934283482, 'NON_TOXIC': 0.011426146207825671}, 'probabilities': {'INSULT': {'0': 0.0114, '1': 0.9886}, 'HATE': {'0': 0.9556, '1': 0.0444}, 'OBSCENE': {'0': 0.2175, '1': 0.7825}, 'THREAT': {'0': 0.9987, '1': 0.0013}, 'SEXUAL': {'0': 0.0429, '1': 0.9571}, 'SELF_HARM': {'0': 0.9865, '1': 0.0135}, 'NON_TOXIC': {'0': 0.9886, '1': 0.0114}}, 'category_results': {'INSULT': {'score': 0.9885738537921743, 'above_threshold': True, 'threshold': 0.6}, 'HATE': {'score': 0.04442004548632572, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.7825482733934175, 'above_threshold': True, 'threshold': 0.6}, 'THREAT': {'score': 0.0012891754003246578, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.9571116660580739, 'above_threshold': True, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.013496453934283482, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.011426146207825671, 'above_threshold': False, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'INSULT', 'raw_logits': [4.4603590965271, -3.0686275959014893, 1.2805787324905396, -6.652462482452393, 3.1053202152252197, -4.2917399406433105], 'sigmoid_scores': [0.9885738537921743, 0.04442004548632572, 0.7825482733934175, 0.0012891754003246578, 0.9571116660580739, 0.013496453934283482], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'You are such an idiot!'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.38441501844454706, 'HATE': 0.0005627493298136255, 'OBSCENE': 0.0041914587353514, 'THREAT': 0.0024278366468590174, 'SEXUAL': 0.0037701156964438523, 'SELF_HARM': 0.0034965018174242185, 'NON_TOXIC': 0.6155849815554529}, 'probabilities': {'INSULT': {'0': 0.6156, '1': 0.3844}, 'HATE': {'0': 0.9994, '1': 0.0006}, 'OBSCENE': {'0': 0.9958, '1': 0.0042}, 'THREAT': {'0': 0.9976, '1': 0.0024}, 'SEXUAL': {'0': 0.9962, '1': 0.0038}, 'SELF_HARM': {'0': 0.9965, '1': 0.0035}, 'NON_TOXIC': {'0': 0.3844, '1': 0.6156}}, 'category_results': {'INSULT': {'score': 0.38441501844454706, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.0005627493298136255, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.0041914587353514, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.0024278366468590174, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.0037701156964438523, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.0034965018174242185, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.6155849815554529, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-0.47085025906562805, -7.482113361358643, -5.470506191253662, -6.01832389831543, -5.5768723487854, -5.65248966217041], 'sigmoid_scores': [0.38441501844454706, 0.0005627493298136255, 0.0041914587353514, 0.0024278366468590174, 0.0037701156964438523, 0.0034965018174242185], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'This toxic sentence contains hate speech.'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.0007708766149877847, 'HATE': 0.00011172231126737383, 'OBSCENE': 0.00018536249164211502, 'THREAT': 0.00010316132275131165, 'SEXUAL': 0.00018687233313118646, 'SELF_HARM': 0.00013591951373589925, 'NON_TOXIC': 0.9992291233850122}, 'probabilities': {'INSULT': {'0': 0.9992, '1': 0.0008}, 'HATE': {'0': 0.9999, '1': 0.0001}, 'OBSCENE': {'0': 0.9998, '1': 0.0002}, 'THREAT': {'0': 0.9999, '1': 0.0001}, 'SEXUAL': {'0': 0.9998, '1': 0.0002}, 'SELF_HARM': {'0': 0.9999, '1': 0.0001}, 'NON_TOXIC': {'0': 0.0008, '1': 0.9992}}, 'category_results': {'INSULT': {'score': 0.0007708766149877847, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.00011172231126737383, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.00018536249164211502, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.00010316132275131165, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.00018687233313118646, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.00013591951373589925, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.9992291233850122, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-7.167211055755615, -9.099382400512695, -8.593011856079102, -9.179113388061523, -8.584897994995117, -8.903311729431152], 'sigmoid_scores': [0.0007708766149877847, 0.00011172231126737383, 0.00018536249164211502, 0.00010316132275131165, 0.00018687233313118646, 0.00013591951373589925], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'Another normal sentence here.'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.0005789254437262362, 'HATE': 0.00012903086299330556, 'OBSCENE': 0.00018128719411080862, 'THREAT': 0.0001259855269910488, 'SEXUAL': 0.00018236834460416554, 'SELF_HARM': 0.00014794874469785152, 'NON_TOXIC': 0.9994210745562737}, 'probabilities': {'INSULT': {'0': 0.9994, '1': 0.0006}, 'HATE': {'0': 0.9999, '1': 0.0001}, 'OBSCENE': {'0': 0.9998, '1': 0.0002}, 'THREAT': {'0': 0.9999, '1': 0.0001}, 'SEXUAL': {'0': 0.9998, '1': 0.0002}, 'SELF_HARM': {'0': 0.9999, '1': 0.0001}, 'NON_TOXIC': {'0': 0.0006, '1': 0.9994}}, 'category_results': {'INSULT': {'score': 0.0005789254437262362, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.00012903086299330556, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.00018128719411080862, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.0001259855269910488, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.00018236834460416554, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.00014794874469785152, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.9994210745562737, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-7.4537577629089355, -8.955329895019531, -8.615246772766113, -8.979217529296875, -8.609299659729004, -8.818496704101562], 'sigmoid_scores': [0.0005789254437262362, 0.00012903086299330556, 0.00018128719411080862, 0.0001259855269910488, 0.00018236834460416554, 0.00014794874469785152], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'The weather is nice today.'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.30411375943094826, 'HATE': 0.0004372543675396579, 'OBSCENE': 0.0024854099045201264, 'THREAT': 0.001811922135445847, 'SEXUAL': 0.0031524160694551984, 'SELF_HARM': 0.0038183463556387357, 'NON_TOXIC': 0.6958862405690518}, 'probabilities': {'INSULT': {'0': 0.6959, '1': 0.3041}, 'HATE': {'0': 0.9996, '1': 0.0004}, 'OBSCENE': {'0': 0.9975, '1': 0.0025}, 'THREAT': {'0': 0.9982, '1': 0.0018}, 'SEXUAL': {'0': 0.9968, '1': 0.0032}, 'SELF_HARM': {'0': 0.9962, '1': 0.0038}, 'NON_TOXIC': {'0': 0.3041, '1': 0.6959}}, 'category_results': {'INSULT': {'score': 0.30411375943094826, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.0004372543675396579, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.0024854099045201264, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.001811922135445847, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.0031524160694551984, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.0038183463556387357, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.6958862405690518, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-0.8277843594551086, -7.73455810546875, -5.994829177856445, -6.311553478240967, -5.7564287185668945, -5.564112186431885], 'sigmoid_scores': [0.30411375943094826, 0.0004372543675396579, 0.0024854099045201264, 0.001811922135445847, 0.0031524160694551984, 0.0038183463556387357], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'Some more hate speech that is really toxic.'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.001856322904499598, 'HATE': 0.0001280211277606524, 'OBSCENE': 0.000222800520777929, 'THREAT': 0.0002029958663725056, 'SEXUAL': 0.00023035841978324395, 'SELF_HARM': 0.0002472939328831112, 'NON_TOXIC': 0.9981436770955004}, 'probabilities': {'INSULT': {'0': 0.9981, '1': 0.0019}, 'HATE': {'0': 0.9999, '1': 0.0001}, 'OBSCENE': {'0': 0.9998, '1': 0.0002}, 'THREAT': {'0': 0.9998, '1': 0.0002}, 'SEXUAL': {'0': 0.9998, '1': 0.0002}, 'SELF_HARM': {'0': 0.9998, '1': 0.0002}, 'NON_TOXIC': {'0': 0.0019, '1': 0.9981}}, 'category_results': {'INSULT': {'score': 0.001856322904499598, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.0001280211277606524, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.000222800520777929, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.0002029958663725056, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.00023035841978324395, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.0002472939328831112, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.9981436770955004, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-6.287299633026123, -8.963187217712402, -8.409010887145996, -8.502121925354004, -8.375643730163574, -8.304685592651367], 'sigmoid_scores': [0.001856322904499598, 0.0001280211277606524, 0.000222800520777929, 0.0002029958663725056, 0.00023035841978324395, 0.0002472939328831112], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'This should be flagged.'}, {'toxic': False, 'is_toxic': False, 'scores': {'INSULT': 0.0007050651557466655, 'HATE': 0.00011397143879045843, 'OBSCENE': 0.00017282037129015074, 'THREAT': 0.00011543631298503201, 'SEXUAL': 0.00018722475267622419, 'SELF_HARM': 0.00014021874896259578, 'NON_TOXIC': 0.9992949348442534}, 'probabilities': {'INSULT': {'0': 0.9993, '1': 0.0007}, 'HATE': {'0': 0.9999, '1': 0.0001}, 'OBSCENE': {'0': 0.9998, '1': 0.0002}, 'THREAT': {'0': 0.9999, '1': 0.0001}, 'SEXUAL': {'0': 0.9998, '1': 0.0002}, 'SELF_HARM': {'0': 0.9999, '1': 0.0001}, 'NON_TOXIC': {'0': 0.0007, '1': 0.9993}}, 'category_results': {'INSULT': {'score': 0.0007050651557466655, 'above_threshold': False, 'threshold': 0.6}, 'HATE': {'score': 0.00011397143879045843, 'above_threshold': False, 'threshold': 0.6}, 'OBSCENE': {'score': 0.00017282037129015074, 'above_threshold': False, 'threshold': 0.6}, 'THREAT': {'score': 0.00011543631298503201, 'above_threshold': False, 'threshold': 0.6}, 'SEXUAL': {'score': 0.00018722475267622419, 'above_threshold': False, 'threshold': 0.6}, 'SELF_HARM': {'score': 0.00014021874896259578, 'above_threshold': False, 'threshold': 0.6}, 'NON_TOXIC': {'score': 0.9992949348442534, 'above_threshold': True, 'threshold': 0.6}}, 'groq_used': False, 'most_probable_category': 'NON_TOXIC', 'raw_logits': [-7.256515026092529, -9.079448699951172, -8.663084983825684, -9.066676139831543, -8.583013534545898, -8.872166633605957], 'sigmoid_scores': [0.0007050651557466655, 0.00011397143879045843, 0.00017282037129015074, 0.00011543631298503201, 0.00018722475267622419, 0.00014021874896259578], 'gray_zone_bounds': (0.4, 0.6), 'tie_policy': 'prefer-groq', 'tie_source': 'local', 'text': 'Final normal sentence to complete the test.'}], 'toxicity_profile': {'overall_score': 0.168, 'category_scores': {'INSULT': 0.168, 'HATE': 0.0034, 'OBSCENE': 0.0581, 'THREAT': 0.0007, 'SEXUAL': 0.0708, 'SELF_HARM': 0.0021}, 'confidence': 0.8433, 'distribution': {'min': 0.0006, 'max': 0.9886, 'mean': 0.1869, 'median': 0.0008, 'percentiles': {'25th': 0.0007, '75th': 0.3041, '90th': 0.5052}, 'std_dev': 0.336}}, 'overall_toxicity_score': 0.168}}, 'timestamp': '2025-07-03T18:44:36'}
