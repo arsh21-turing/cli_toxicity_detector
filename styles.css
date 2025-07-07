@@ -1,0 +1,722 @@
+/* styles.css */
+/* Main styling for Toxicity Detector Streamlit app - Enhanced with animations and interactions */
+
+/* Global animations and transitions */
+* {
+    transition: all 0.3s ease;
+}
+
+/* Results styling with enhanced animations and hover effects */
+.toxic-result {
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.toxic-result:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.toxic-header {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    transition: color 0.2s ease;
+}
+
+.toxic-category {
+    font-size: 18px;
+    font-weight: bold;
+    transition: transform 0.2s ease;
+}
+
+.toxic-category:hover {
+    transform: scale(1.02);
+}
+
+.non-toxic {
+    background-color: rgba(0, 200, 0, 0.2);
+    border: 1px solid rgba(0, 200, 0, 0.4);
+    animation: fadeInGreen 0.5s ease-out;
+}
+
+.toxic {
+    background-color: rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 0, 0, 0.4);
+    animation: fadeInRed 0.5s ease-out;
+}
+
+@keyframes fadeInGreen {
+    from {
+        opacity: 0;
+        background-color: rgba(0, 200, 0, 0);
+    }
+    to {
+        opacity: 1;
+        background-color: rgba(0, 200, 0, 0.2);
+    }
+}
+
+@keyframes fadeInRed {
+    from {
+        opacity: 0;
+        background-color: rgba(255, 0, 0, 0);
+    }
+    to {
+        opacity: 1;
+        background-color: rgba(255, 0, 0, 0.2);
+    }
+}
+
+.probability-bar {
+    height: 20px;
+    margin-bottom: 5px;
+    transition: width 0.5s ease-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.probability-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 75%);
+    animation: shimmer 2s infinite;
+    transform: translateX(-100%);
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.main-header {
+    text-align: center;
+    margin-bottom: 30px;
+    animation: fadeIn 0.8s ease-out;
+    position: relative;
+}
+
+.main-header::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    background-color: #f63366;
+    transition: width 0.5s ease;
+}
+
+.main-header:hover::after {
+    width: 100px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Sidebar enhancements */
+.sidebar-header {
+    font-weight: bold;
+    margin-top: 20px;
+    position: relative;
+    padding-left: 10px;
+    transition: padding-left 0.3s ease;
+}
+
+.sidebar-header::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 0;
+    background-color: #f63366;
+    transition: height 0.3s ease;
+}
+
+.sidebar-header:hover {
+    padding-left: 12px;
+}
+
+.sidebar-header:hover::before {
+    height: 80%;
+}
+
+.slider-label {
+    margin-bottom: 0;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.slider-label:hover {
+    color: #f63366;
+}
+
+.stAlert {
+    margin-top: 0;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Profile management styling */
+.profile-container {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.profile-container:hover {
+    border-color: #f63366;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.profile-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.profile-title {
+    font-weight: bold;
+    transition: color 0.2s ease;
+}
+
+.profile-title:hover {
+    color: #f63366;
+}
+
+/* File upload styling with animations */
+.file-upload-container {
+    border: 2px dashed #aaa;
+    border-radius: 5px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+    background-color: rgba(245, 245, 245, 0.6);
+    position: relative;
+}
+
+.file-upload-container:hover {
+    border-color: #f63366;
+    background-color: rgba(245, 245, 245, 0.9);
+    transform: scale(1.01);
+}
+
+.file-upload-container::before {
+    content: '📁';
+    font-size: 24px;
+    margin-bottom: 10px;
+    display: block;
+    opacity: 0.6;
+    transition: all 0.3s ease;
+}
+
+.file-upload-container:hover::before {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Summary statistics styling with hover effects */
+.summary-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 3px;
+    transition: width 0.3s ease;
+}
+
+.stat-card:nth-child(1)::after {
+    background-color: #2196F3;  /* Blue */
+}
+
+.stat-card:nth-child(2)::after {
+    background-color: #F44336;  /* Red */
+}
+
+.stat-card:nth-child(3)::after {
+    background-color: #4CAF50;  /* Green */
+}
+
+.stat-card:nth-child(4)::after {
+    background-color: #9C27B0;  /* Purple */
+}
+
+.stat-card:hover::after {
+    width: 100%;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: bold;
+    margin: 10px 0;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover .stat-value {
+    transform: scale(1.1);
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #555;
+    transition: color 0.3s ease;
+}
+
+.stat-card:hover .stat-label {
+    color: #333;
+}
+
+.tab-content {
+    padding: 15px 0;
+}
+
+/* Metrics display styling with hover interactions */
+.metrics-container {
+    background-color: #f5f5f5;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+    border-left: 0 solid #2196F3;
+}
+
+.metrics-container:hover {
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    border-left-width: 4px;
+    padding-left: 16px;
+}
+
+.metrics-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    transition: color 0.3s ease;
+}
+
+.metrics-container:hover .metrics-title {
+    color: #2196F3;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.metric-item:hover {
+    background-color: rgba(33, 150, 243, 0.05);
+    border-bottom-color: rgba(33, 150, 243, 0.2);
+    padding-left: 5px;
+}
+
+.metric-label {
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.metric-item:hover .metric-label {
+    color: #2196F3;
+}
+
+.metric-value {
+    font-family: monospace;
+    transition: all 0.2s ease;
+}
+
+.metric-item:hover .metric-value {
+    font-weight: bold;
+}
+
+/* Chart container styling with animations */
+.chart-container {
+    margin: 15px 0;
+    padding: 10px;
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.chart-container:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transform: translateY(-3px);
+}
+
+.chart-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.chart-title::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background-color: #2196F3;
+    transform: translateX(-50%);
+    transition: width 0.3s ease;
+}
+
+.chart-container:hover .chart-title::after {
+    width: 50px;
+}
+
+/* Enhance Streamlit's default buttons */
+button[kind="primary"], .stButton>button {
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+button[kind="primary"]:hover, .stButton>button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+}
+
+button[kind="primary"]::after, .stButton>button::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 0 !important;
+    height: 0 !important;
+    background-color: rgba(255,255,255,0.2) !important;
+    border-radius: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    transition: all 0.5s ease !important;
+}
+
+button[kind="primary"]:active::after, .stButton>button:active::after {
+    width: 300px !important;
+    height: 300px !important;
+}
+
+/* Enhance expander elements */
+.streamlit-expanderHeader {
+    transition: all 0.3s ease !important;
+}
+
+.streamlit-expanderHeader:hover {
+    background-color: rgba(33, 150, 243, 0.05) !important;
+}
+
+.streamlit-expanderContent {
+    animation: fadeIn 0.5s ease-out !important;
+}
+
+/* Enhance selectbox and input elements */
+select, input, textarea {
+    transition: all 0.3s ease !important;
+    border: 1px solid #ccc !important;
+}
+
+select:focus, input:focus, textarea:focus {
+    border-color: #f63366 !important;
+    box-shadow: 0 0 0 2px rgba(246, 51, 102, 0.1) !important;
+    transform: scale(1.01) !important;
+}
+
+/* Pagination enhancement */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.pagination-container:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.page-button {
+    transition: all 0.3s ease;
+    border: 1px solid #ddd;
+    background-color: white;
+    padding: 5px 15px;
+    border-radius: 3px;
+    margin: 0 3px;
+    cursor: pointer;
+}
+
+.page-button:hover:not([disabled]) {
+    background-color: #f63366;
+    color: white !important;
+    transform: translateY(-2px);
+}
+
+.page-button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.page-info {
+    margin: 0 15px;
+    font-weight: bold;
+}
+
+/* Enhance checkbox appearance */
+.stCheckbox > label > div[data-testid="stTickBar"] > div {
+    transition: all 0.2s ease !important;
+}
+
+.stCheckbox:hover > label > div[data-testid="stTickBar"] > div {
+    transform: scale(1.1) !important;
+}
+
+/* Loading states and progress bars */
+.stProgress > div > div {
+    background: linear-gradient(90deg, #f63366 0%, #ffb347 50%, #f63366 100%) !important;
+    background-size: 200% !important;
+    animation: progressGradient 2s linear infinite !important;
+}
+
+@keyframes progressGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 100% 50%;
+    }
+}
+
+/* Status message animation */
+.status-message {
+    animation: fadeIn 0.5s ease-out;
+    transition: all 0.3s ease;
+}
+
+.status-message:hover {
+    background-color: rgba(245, 245, 245, 0.9);
+    transform: scale(1.01);
+}
+
+/* Slider animations */
+.stSlider {
+    transition: all 0.3s ease !important;
+}
+
+.stSlider:hover > div:first-child {
+    transform: scale(1.02) !important;
+}
+
+/* Download button enhancement */
+.stDownloadButton > button {
+    transition: all 0.3s ease !important;
+}
+
+.stDownloadButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+}
+
+.stDownloadButton > button::before {
+    content: '📥';
+    margin-right: 5px !important;
+    transition: all 0.3s ease !important;
+}
+
+.stDownloadButton > button:hover::before {
+    transform: translateY(-2px) !important;
+}
+
+/* Tab animations and effects */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 2px !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+    transition: all 0.3s ease !important;
+    border-radius: 5px 5px 0 0 !important;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: rgba(246, 51, 102, 0.05) !important;
+}
+
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    border-bottom: 2px solid #f63366 !important;
+    font-weight: bold !important;
+}
+
+.stTabs [data-baseweb="tab-panel"] {
+    animation: fadeIn 0.5s ease-out !important;
+}
+
+/* Animation for text input area */
+.stTextArea {
+    transition: all 0.3s ease !important;
+}
+
+.stTextArea:hover textarea {
+    border-color: #f63366 !important;
+}
+
+.stTextArea textarea:focus {
+    transform: scale(1.01) !important;
+    box-shadow: 0 0 0 2px rgba(246, 51, 102, 0.1) !important;
+}
+
+/* Visualization tooltip enhancement */
+[data-testid="stToolbar"] {
+    transition: opacity 0.3s ease !important;
+}
+
+[data-testid="chart_container"] {
+    transition: all 0.3s ease !important;
+}
+
+[data-testid="chart_container"]:hover {
+    transform: scale(1.01) !important;
+}
+
+/* Alert enhancement */
+.stAlert {
+    animation: slideInAlert 0.3s ease-out !important;
+}
+
+@keyframes slideInAlert {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Hover effect for category pills */
+.category-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 15px;
+    margin: 2px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    background-color: #2196F3;
+    transition: all 0.3s ease;
+}
+
+.category-pill:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 3px 5px rgba(0,0,0,0.2);
+}
+
+.category-pill.insult { background-color: #d62728; }
+.category-pill.hate { background-color: #9467bd; }
+.category-pill.obscene { background-color: #ff7f0e; }
+.category-pill.threat { background-color: #e74c3c; }
+.category-pill.sexual { background-color: #f39c12; }
+.category-pill.self-harm { background-color: #8c564b; }
+
+/* Custom progress bar with animation */
+.animated-progress-bar {
+    height: 4px;
+    background-color: #f0f0f0;
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+.animated-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, 
+        rgba(255,255,255,0) 0%, 
+        rgba(255,255,255,0.5) 50%, 
+        rgba(255,255,255,0) 100%);
+    animation: progressShimmer 1.5s infinite;
+}
+
+@keyframes progressShimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .summary-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+} 
