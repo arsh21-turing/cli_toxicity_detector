@@ -29,6 +29,20 @@ from datetime import datetime
 from model_loader import analyze_text, get_model, DEFAULT_CATEGORIES
 import re
 
+# Try to import metrics dashboard
+try:
+    from metrics_dashboard import MetricsTracker, create_metrics_dashboard
+    METRICS_DASHBOARD_AVAILABLE = True
+except ImportError:
+    METRICS_DASHBOARD_AVAILABLE = False
+
+# Try to import monitor.py
+try:
+    from monitor import MonitoringContext, get_system_metrics, format_bytes, format_time
+    MONITOR_AVAILABLE = True
+except ImportError:
+    MONITOR_AVAILABLE = False
+
 # Try to import categories module
 try:
     from categories import get_category_description, get_all_categories, get_toxic_categories
@@ -43,6 +57,39 @@ try:
     GROQ_AVAILABLE = True
 except ImportError:
     GROQ_AVAILABLE = False
+
+# Try to import API integration module
+try:
+    from api_integration import create_groq_config_ui, compare_model_results, display_side_by_side_comparison
+    API_INTEGRATION_AVAILABLE = True
+except ImportError:
+    API_INTEGRATION_AVAILABLE = False
+
+# Try to import performance tracker module
+try:
+    from performance_tracker import PerformanceTracker, display_performance_dashboard
+    PERFORMANCE_TRACKER_AVAILABLE = True
+except ImportError:
+    PERFORMANCE_TRACKER_AVAILABLE = False
+
+# Try to import export utilities
+try:
+    from export_utils import generate_comprehensive_report
+    EXPORT_UTILS_AVAILABLE = True
+except ImportError:
+    EXPORT_UTILS_AVAILABLE = False
+
+# Try to import color utilities
+try:
+    from color_utils import (
+        get_toxicity_color, 
+        apply_color_to_dataframe, 
+        get_html_badge_for_score,
+        THRESHOLDS
+    )
+    COLOR_UTILS_AVAILABLE = True
+except ImportError:
+    COLOR_UTILS_AVAILABLE = False
 
 # Try to import file processor module
 try:
@@ -80,6 +127,151 @@ except ImportError:
         "batch": {"size": 150}
     }
     CONFIG_LOADER_AVAILABLE = False
+
+
+def analyze_with_primary_model(text):
+    """
+    Simulated function to analyze text with the primary model.
+    In a real implementation, this would call the actual toxicity detection model.
+    
+    Returns mock results for demonstration purposes.
+    """
+    import time
+    import random
+    
+    # Simulate processing time
+    time.sleep(0.5)
+    
+    # Generate realistic mock results
+    # In a real implementation, this would be the output of the actual model
+    base_result = {
+        "identity_attack": max(0.0, min(1.0, random.normalvariate(0.2, 0.15))),
+        "insult": max(0.0, min(1.0, random.normalvariate(0.3, 0.2))),
+        "obscene": max(0.0, min(1.0, random.normalvariate(0.25, 0.17))),
+        "severe_toxicity": max(0.0, min(1.0, random.normalvariate(0.1, 0.1))),
+        "sexual_explicit": max(0.0, min(1.0, random.normalvariate(0.15, 0.12))),
+        "threat": max(0.0, min(1.0, random.normalvariate(0.05, 0.07))),
+        "toxicity": max(0.0, min(1.0, random.normalvariate(0.35, 0.25)))
+    }
+    
+    # Update metrics if available
+    if METRICS_DASHBOARD_AVAILABLE and 'metrics_tracker' in st.session_state:
+        st.session_state.metrics_tracker.increment_processed()
+        st.session_state.metrics_tracker.increment_api_calls()
+        st.session_state.metrics_tracker.update_memory_usage()
+    
+    return base_result
+
+
+def display_toxicity_results(results, source):
+    """
+    Display toxicity analysis results from a single source with color coding.
+    
+    Args:
+        results: The analysis results dictionary
+        source: Source identifier ('primary' or 'groq')
+    """
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import streamlit as st
+    
+    # Convert results to DataFrame
+    scores = {k: v for k, v in results.items() if isinstance(v, (int, float))}
+    df = pd.DataFrame({
+        'Category': scores.keys(),
+        'Score': scores.values()
+    })
+    
+    # Sort by score descending
+    df = df.sort_values('Score', ascending=False)
+    
+    # Display colored badges for each category if color utils available
+    if COLOR_UTILS_AVAILABLE:
+        st.write("### Score Summary")
+        badge_html = "".join([
+            get_html_badge_for_score(row['Score'], row['Category'], True)
+            for _, row in df.iterrows()
+        ])
+        st.markdown(badge_html, unsafe_allow_html=True)
+    
+    # Create bar chart with colored bars
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Use category-specific colors for bars if available
+    if COLOR_UTILS_AVAILABLE:
+        colors = [get_toxicity_color(score, category) 
+                 for category, score in zip(df['Category'], df['Score'])]
+    else:
+        # Fallback to simple red/green
+        colors = ['#ff6b6b' if score >= 0.5 else '#4ecdc4' 
+                 for score in df['Score']]
+    
+    bars = ax.barh(df['Category'], df['Score'], color=colors)
+    
+    # Add value labels
+    for bar in bars:
+        width = bar.get_width()
+        label_x_pos = width + 0.01
+        ax.text(label_x_pos, bar.get_y() + bar.get_height()/2, 
+                f'{width:.2f}', va='center')
+    
+    # Add threshold lines with labels if color utils available
+    if COLOR_UTILS_AVAILABLE:
+        for threshold_name, threshold_value in THRESHOLDS.items():
+            if threshold_value <= 1.0:  # Only show thresholds in range
+                ax.axvline(x=threshold_value, color='gray', linestyle='--', alpha=0.7)
+                ax.text(threshold_value, -0.6, threshold_name, 
+                       color='gray', alpha=0.7, ha='center', fontsize=8)
+    else:
+        # Simple threshold line
+        ax.axvline(x=0.5, color='red', linestyle='--', alpha=0.7)
+        ax.text(0.5, -0.6, 'threshold', color='red', alpha=0.7, ha='center', fontsize=8)
+    
+    # Formatting
+    ax.set_xlim(0, 1.1)
+    ax.set_title(f'Toxicity Analysis Scores ({source.capitalize()})')
+    ax.set_xlabel('Score (0-1)')
+    plt.tight_layout()
+    
+    # Display in Streamlit
+    st.pyplot(fig)
+    
+    # Display as a color-coded table if available
+    if COLOR_UTILS_AVAILABLE:
+        st.subheader("Detailed Scores")
+        styled_df = apply_color_to_dataframe(df, score_column='Score', category_column='Category')
+        st.dataframe(styled_df, hide_index=True)
+        
+        # Add a color legend
+        st.markdown("#### Color Legend")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(
+                f'<div style="color: #2ECC71;">Safe (< {THRESHOLDS["safe"]})</div>',
+                unsafe_allow_html=True
+            )
+        
+        with col2:
+            st.markdown(
+                f'<div style="color: #F1C40F;">Borderline ({THRESHOLDS["safe"]} - {THRESHOLDS["borderline"]})</div>',
+                unsafe_allow_html=True
+            )
+        
+        with col3:
+            st.markdown(
+                f'<div style="color: #FF8D33;">Toxic ({THRESHOLDS["borderline"]} - {THRESHOLDS["toxic"]})</div>',
+                unsafe_allow_html=True
+            )
+        
+        with col4:
+            st.markdown(
+                f'<div style="color: #C70039;">Highly Toxic (> {THRESHOLDS["toxic"]})</div>',
+                unsafe_allow_html=True
+            )
+    else:
+        # Fallback to simple table
+        st.dataframe(df, hide_index=True)
 
 # Set page title and config
 st.set_page_config(
@@ -801,107 +993,255 @@ def analyze_text_with_logging(analyzer, text, log_individual_categories=False):
         logger.error(f"Error analyzing text: {str(e)}")
         raise
 
+
+def create_system_health_panel(monitoring_context: MonitoringContext, refresh_interval: float = 3):
+    """
+    Create a system health monitoring panel using the existing monitor.py infrastructure.
+    
+    Args:
+        monitoring_context: Instance of MonitoringContext from monitor.py
+        refresh_interval: Time between updates in seconds
+        
+    Returns:
+        Dictionary with current system metrics
+    """
+    # Add CSS for health monitoring panel
+    st.markdown("""
+    <style>
+    .health-panel {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    .health-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .health-item:last-child {
+        border-bottom: none;
+    }
+    .health-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    .health-value {
+        font-family: monospace;
+        font-weight: 500;
+    }
+    .status-healthy { color: #28a745; }
+    .status-warning { color: #ffc107; }
+    .status-critical { color: #dc3545; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Panel header
+    st.sidebar.markdown("## 🏥 System Health")
+    st.sidebar.markdown(f"*Auto-refresh every {refresh_interval}s*")
+    
+    # Get current system metrics using monitor.py
+    system_metrics = get_system_metrics()
+    
+    # Create health display
+    with st.sidebar.container():
+        st.markdown('<div class="health-panel">', unsafe_allow_html=True)
+        
+        # CPU Usage
+        cpu_percent = system_metrics.get("cpu", {}).get("total", 0)
+        cpu_status = "critical" if cpu_percent > 80 else "warning" if cpu_percent > 60 else "healthy"
+        cpu_icon = "🔴" if cpu_status == "critical" else "🟡" if cpu_status == "warning" else "🟢"
+        
+        st.markdown(f"""
+        <div class="health-item">
+            <span class="health-label">{cpu_icon} CPU Usage:</span>
+            <span class="health-value status-{cpu_status}">{cpu_percent:.1f}%</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Memory Usage
+        memory_percent = system_metrics.get("memory", {}).get("percent_used", 0)
+        memory_status = "critical" if memory_percent > 85 else "warning" if memory_percent > 70 else "healthy"
+        memory_icon = "🔴" if memory_status == "critical" else "🟡" if memory_status == "warning" else "🟢"
+        
+        st.markdown(f"""
+        <div class="health-item">
+            <span class="health-label">{memory_icon} Memory Usage:</span>
+            <span class="health-value status-{memory_status}">{memory_percent:.1f}%</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Process-specific metrics if available
+        if "process" in system_metrics:
+            process_metrics = system_metrics["process"]
+            
+            # Process CPU
+            process_cpu = process_metrics.get("cpu_percent", 0)
+            process_cpu_status = "critical" if process_cpu > 50 else "warning" if process_cpu > 30 else "healthy"
+            process_cpu_icon = "🔴" if process_cpu_status == "critical" else "🟡" if process_cpu_status == "warning" else "🟢"
+            
+            st.markdown(f"""
+            <div class="health-item">
+                <span class="health-label">{process_cpu_icon} Process CPU:</span>
+                <span class="health-value status-{process_cpu_status}">{process_cpu:.1f}%</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Process Memory
+            process_memory_mb = process_metrics.get("memory_bytes", 0) / (1024 * 1024)
+            process_memory_percent = process_metrics.get("memory_percent", 0)
+            
+            st.markdown(f"""
+            <div class="health-item">
+                <span class="health-label">💾 Process Memory:</span>
+                <span class="health-value">{process_memory_mb:.1f} MB ({process_memory_percent:.1f}%)</span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Disk I/O
+        read_bytes = system_metrics.get("disk", {}).get("read_bytes", 0)
+        write_bytes = system_metrics.get("disk", {}).get("write_bytes", 0)
+        
+        st.markdown(f"""
+        <div class="health-item">
+            <span class="health-label">💿 Disk I/O:</span>
+            <span class="health-value">R: {format_bytes(read_bytes)}<br/>W: {format_bytes(write_bytes)}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # System Info
+        cpu_cores = system_metrics.get("cpu", {}).get("cores", 0)
+        total_memory_gb = system_metrics.get("memory", {}).get("total", 0) / (1024**3)
+        
+        st.markdown(f"""
+        <div class="health-item">
+            <span class="health-label">🖥️ System Info:</span>
+            <span class="health-value">{cpu_cores} cores<br/>{total_memory_gb:.1f} GB RAM</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Add refresh button
+    if st.sidebar.button("🔄 Refresh Health", key="refresh_health"):
+        st.rerun()
+    
+    # Add auto-refresh using session state
+    if "last_health_update" not in st.session_state:
+        st.session_state.last_health_update = time.time()
+    
+    # Check if it's time to auto-refresh
+    current_time = time.time()
+    if current_time - st.session_state.last_health_update >= refresh_interval:
+        st.session_state.last_health_update = current_time
+        # Use st.empty() to trigger a rerun without showing anything
+        placeholder = st.empty()
+        placeholder.markdown("")
+    
+    return system_metrics
+
 # Create custom localStorage component
 def create_localstorage_component():
     component_id = str(uuid.uuid4())
 
     # JavaScript code for localStorage interaction
-    js_code = """
+    js_code = f"""
     <script>
+    // Helper to send data back to Streamlit
+    function sendToStreamlit(data) {{
+        if (window.Streamlit && typeof window.Streamlit.setComponentValue === 'function') {{
+            window.Streamlit.setComponentValue(data);
+        }}
+    }}
+
     // Initialize localStorage handler
-    function initLocalStorage() {
+    function initLocalStorage() {{
         // Get all profiles from localStorage
-        function getProfiles() {
+        function getProfiles() {{
             const profilesStr = localStorage.getItem('toxicityProfiles');
-            return profilesStr ? JSON.parse(profilesStr) : {};
-        }
-        
+            return profilesStr ? JSON.parse(profilesStr) : {{}};
+        }}
         // Save profiles to localStorage
-        function saveProfiles(profiles) {
+        function saveProfiles(profiles) {{
             localStorage.setItem('toxicityProfiles', JSON.stringify(profiles));
-        }
-        
+        }}
         // Save a profile
-        function saveProfile(profileName, profileData) {
+        function saveProfile(profileName, profileData) {{
             const profiles = getProfiles();
             profiles[profileName] = profileData;
             saveProfiles(profiles);
             return Object.keys(profiles);
-        }
-        
+        }}
         // Delete a profile
-        function deleteProfile(profileName) {
+        function deleteProfile(profileName) {{
             const profiles = getProfiles();
-            if (profiles[profileName]) {
+            if (profiles[profileName]) {{
                 delete profiles[profileName];
                 saveProfiles(profiles);
-            }
+            }}
             return Object.keys(profiles);
-        }
-        
+        }}
         // Get a specific profile
-        function getProfile(profileName) {
+        function getProfile(profileName) {{
             const profiles = getProfiles();
             return profiles[profileName] || null;
-        }
-        
+        }}
         // Load all profile names
-        function loadProfileNames() {
+        function loadProfileNames() {{
             const profiles = getProfiles();
             return Object.keys(profiles);
-        }
-        
+        }}
         // Set up event listeners for messages from Python
-        window.addEventListener('message', function(event) {
+        window.addEventListener('message', function(event) {{
             const data = event.data;
-            
-            if (data.type === 'saveProfile' && data.componentId === "${component_id}") {
+            if (data.type === 'saveProfile' && data.componentId === "{component_id}") {{
                 const profileNames = saveProfile(data.profileName, data.profileData);
-                window.streamlitSendBack({
+                sendToStreamlit({{
                     type: 'profileSaved',
                     profileNames: profileNames,
-                    componentId: "${component_id}"
-                });
-            }
-            else if (data.type === 'deleteProfile' && data.componentId === "${component_id}") {
+                    componentId: "{component_id}"
+                }});
+            }}
+            else if (data.type === 'deleteProfile' && data.componentId === "{component_id}") {{
                 const profileNames = deleteProfile(data.profileName);
-                window.streamlitSendBack({
+                sendToStreamlit({{
                     type: 'profileDeleted',
                     profileNames: profileNames,
-                    componentId: "${component_id}"
-                });
-            }
-            else if (data.type === 'loadProfile' && data.componentId === "${component_id}") {
+                    componentId: "{component_id}"
+                }});
+            }}
+            else if (data.type === 'loadProfile' && data.componentId === "{component_id}") {{
                 const profileData = getProfile(data.profileName);
-                window.streamlitSendBack({
+                sendToStreamlit({{
                     type: 'profileLoaded',
                     profileData: profileData,
-                    componentId: "${component_id}"
-                });
-            }
-            else if (data.type === 'getProfileNames' && data.componentId === "${component_id}") {
+                    componentId: "{component_id}"
+                }});
+            }}
+            else if (data.type === 'getProfileNames' && data.componentId === "{component_id}") {{
                 const profileNames = loadProfileNames();
-                window.streamlitSendBack({
+                sendToStreamlit({{
                     type: 'profileNamesLoaded',
                     profileNames: profileNames,
-                    componentId: "${component_id}"
-                });
-            }
-        });
-        
+                    componentId: "{component_id}"
+                }});
+            }}
+        }});
         // Signal that component is ready
-        window.streamlitSendBack({
+        sendToStreamlit({{
             type: 'componentReady',
-            componentId: "${component_id}"
-        });
-    }
-
+            componentId: "{component_id}"
+        }});
+    }}
     // Initialize when DOM content is loaded
-    if (document.readyState === 'loading') {
+    if (document.readyState === 'loading') {{
         document.addEventListener('DOMContentLoaded', initLocalStorage);
-    } else {
+    }} else {{
         initLocalStorage();
-    }
+    }}
     </script>
     """
 
@@ -1168,13 +1508,6 @@ def create_sidebar_controls(component_id) -> Dict:
     # Profile management section
     updated_config = create_profile_manager(component_id, updated_config)
 
-    # Add settings header
-    st.sidebar.markdown("""
-    <div class="sidebar-header">
-    Settings
-    </div>
-    """, unsafe_allow_html=True)
-
     # Add logging panel toggle
     show_logging = st.sidebar.checkbox(
         "Show Logging Panel",
@@ -1216,12 +1549,7 @@ def create_sidebar_controls(component_id) -> Dict:
             updated_config["groq"]["api_key"] = groq_api_key
 
     # Add batch size control
-    st.sidebar.markdown("""
-    <div class="sidebar-header">
-    Batch Processing
-    </div>
-    """, unsafe_allow_html=True)
-
+    st.sidebar.markdown("**Batch Processing**")
     batch_size = st.sidebar.slider(
         "Batch Size",
         min_value=50,
@@ -1237,11 +1565,7 @@ def create_sidebar_controls(component_id) -> Dict:
     updated_config["batch"]["size"] = batch_size
 
     # Add threshold controls
-    st.sidebar.markdown("""
-    <div class="sidebar-header">
-    Threshold Settings
-    </div>
-    """, unsafe_allow_html=True)
+    st.sidebar.markdown("**Threshold Settings**")
     st.sidebar.markdown("Adjust the sensitivity for each toxicity category.")
 
     # Default threshold control
@@ -1373,6 +1697,10 @@ def process_uploaded_file(uploaded_file, analyzer, config) -> Dict:
         Dictionary with analysis results
     """
     start_time = time.time()
+    
+    # Reset metrics tracker if available
+    if METRICS_DASHBOARD_AVAILABLE and 'metrics_tracker' in st.session_state:
+        st.session_state.metrics_tracker.reset()
     file_extension = uploaded_file.name.split(".")[-1].lower()
     original_df = None
 
@@ -1441,13 +1769,38 @@ def process_uploaded_file(uploaded_file, analyzer, config) -> Dict:
         
         # Process batch using simple loop processing
         batch_results = []
+        api_calls_in_batch = 0
+        errors_in_batch = 0
+        
         for line in batch_lines:
             if line.strip():  # Skip empty lines
-                analysis = analyzer(line)
-                batch_results.append({
-                    "text": line,
-                    "analysis": analysis
-                })
+                try:
+                    analysis = analyzer(line)
+                    batch_results.append({
+                        "text": line,
+                        "analysis": analysis
+                    })
+                    api_calls_in_batch += 1
+                except Exception as e:
+                    errors_in_batch += 1
+                    logger.error(f"Error processing line: {e}")
+                    # Add a default result for failed analysis
+                    batch_results.append({
+                        "text": line,
+                        "analysis": {
+                            "is_toxic": False,
+                            "category": "unknown",
+                            "confidence": 0.0,
+                            "probabilities": {cat: 0.0 for cat in DEFAULT_CATEGORIES}
+                        }
+                    })
+        
+        # Update metrics if available
+        if METRICS_DASHBOARD_AVAILABLE and 'metrics_tracker' in st.session_state:
+            st.session_state.metrics_tracker.increment_processed(len(batch_lines))
+            st.session_state.metrics_tracker.increment_api_calls(api_calls_in_batch)
+            if errors_in_batch > 0:
+                st.session_state.metrics_tracker.increment_errors(errors_in_batch)
         
         # Aggregate results
         for result in batch_results:
@@ -2199,6 +2552,39 @@ def display_detailed_results(results, page_size=10):
             st.session_state.page_number = page_input - 1
             st.experimental_rerun()
 
+def convert_dataframe_to_dict(obj):
+    """
+    Convert DataFrame, Series, and other pandas/numpy objects to JSON-serializable types.
+    """
+    import pandas as pd
+    import numpy as np
+    import datetime
+
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_dict('records')
+    elif isinstance(obj, pd.Series):
+        return [convert_dataframe_to_dict(item) for item in obj.tolist()]
+    elif isinstance(obj, dict):
+        return {k: convert_dataframe_to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_dataframe_to_dict(item) for item in obj]
+    elif isinstance(obj, (pd.Timestamp, datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, (np.ndarray,)):
+        return [convert_dataframe_to_dict(item) for item in obj.tolist()]
+    elif isinstance(obj, (np.bool_)):
+        return bool(obj)
+    elif isinstance(obj, complex):
+        return {"real": obj.real, "imag": obj.imag}
+    elif hasattr(obj, 'item'):
+        return obj.item()
+    else:
+        return obj
+
 def file_upload_section(analyzer, config):
     """Create file upload section
 
@@ -2232,7 +2618,9 @@ def file_upload_section(analyzer, config):
         display_file_results_summary(st.session_state.file_results)
         
         # Option to download results as JSON
-        results_json = json.dumps(st.session_state.file_results, indent=2)
+        # Convert DataFrames to JSON-serializable format
+        serializable_results = convert_dataframe_to_dict(st.session_state.file_results)
+        results_json = json.dumps(serializable_results, indent=2)
         st.download_button(
             "Download Results as JSON",
             results_json,
@@ -2262,6 +2650,22 @@ def main():
     # Initialize the localStorage component
     component_id = create_localstorage_component()
 
+    # Initialize session state for metrics tracking
+    if METRICS_DASHBOARD_AVAILABLE and 'metrics_tracker' not in st.session_state:
+        st.session_state.metrics_tracker = MetricsTracker()
+    
+    # Initialize session state for system monitoring
+    if MONITOR_AVAILABLE and 'monitoring_context' not in st.session_state:
+        st.session_state.monitoring_context = MonitoringContext({})
+
+    # Initialize performance tracker if not already present
+    if PERFORMANCE_TRACKER_AVAILABLE and 'performance_tracker' not in st.session_state:
+        st.session_state.performance_tracker = PerformanceTracker()
+
+    # Initialize the confirm_clear flag if it doesn't exist
+    if 'confirm_clear' not in st.session_state:
+        st.session_state.confirm_clear = False
+
     # Initialize Streamlit communication listener
     listener_code = """
     <script>
@@ -2289,124 +2693,261 @@ def main():
     </h1>
     """, unsafe_allow_html=True)
 
-    # Create sidebar controls and get updated config
-    updated_config = create_sidebar_controls(component_id)
+    # Initialize last_results in session state if it doesn't exist
+    if 'last_analysis_results' not in st.session_state:
+        st.session_state.last_analysis_results = {}
+
+    # Create prominent "Export All" button at the top of the page
+    export_container = st.container()
+    with export_container:
+        export_cols = st.columns([3, 1])
+        
+        with export_cols[0]:
+            st.write("### Analyze text or export comprehensive report")
+        
+        with export_cols[1]:
+            if st.button("📥 Export All", type="primary", use_container_width=True):
+                with st.spinner("Generating comprehensive report..."):
+                    try:
+                        # Get current analysis results if available
+                        current_results = st.session_state.get('last_analysis_results', {})
+                        
+                        # Generate the report
+                        filename, zip_bytes = generate_comprehensive_report(
+                            metrics_tracker=st.session_state.metrics_tracker,
+                            performance_tracker=st.session_state.performance_tracker,
+                            monitoring_context=st.session_state.monitoring_context,
+                            current_results=current_results
+                        )
+                        
+                        # Provide download link
+                        st.success("✅ Report generated successfully!")
+                        st.download_button(
+                            "Download Complete Report",
+                            zip_bytes,
+                            filename,
+                            "application/zip",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error(f"Error generating report: {str(e)}")
+
+    # Sidebar with collapsible sections
+    with st.sidebar:
+        # Add logo/header
+        st.markdown("""
+        <div style="text-align: center; padding: 10px 0;">
+            <h2 style="margin: 0; color: #1f77b4;">🛡️ ToxicityDetect</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("---")
+        
+        # Collapsible section for API configuration
+        config_expander = st.expander("🔑 API Configuration", expanded=True)
+        with config_expander:
+            # Create Groq API configuration if available
+            if API_INTEGRATION_AVAILABLE:
+                groq_api = create_groq_config_ui(default_enabled=False, default_comparison_mode=False)
+            else:
+                groq_api = None
+        
+        st.markdown("---")
+        
+        # Collapsible section for metrics dashboard
+        metrics_expander = st.expander("📊 Processing Metrics", expanded=False)
+        with metrics_expander:
+            # Create metrics dashboard if available
+            if METRICS_DASHBOARD_AVAILABLE:
+                create_metrics_dashboard(st.session_state.metrics_tracker, refresh_interval=2)
+            else:
+                st.info("Metrics dashboard not available")
+        
+        st.markdown("---")
+        
+        # Collapsible section for health monitoring
+        health_expander = st.expander("💻 System Health", expanded=False)
+        with health_expander:
+            # Create health monitoring dashboard if available
+            if MONITOR_AVAILABLE:
+                create_system_health_panel(st.session_state.monitoring_context, refresh_interval=3)
+            else:
+                st.info("System health monitoring not available")
+        
+        st.markdown("---")
+        
+        # Collapsible section for performance tracking
+        performance_expander = st.expander("📈 Performance Analysis", expanded=False)
+        with performance_expander:
+            # Display performance dashboard if available
+            if PERFORMANCE_TRACKER_AVAILABLE:
+                display_performance_dashboard(
+                    st.session_state.performance_tracker,
+                    active_tab="Overview"
+                )
+            else:
+                st.info("Performance tracking not available")
+        
+        st.markdown("---")
+        
+        # Collapsible section for settings and controls
+        settings_expander = st.expander("⚙️ Settings & Controls", expanded=True)
+        with settings_expander:
+            # Create sidebar controls and get updated config
+            updated_config = create_sidebar_controls(component_id)
 
     # Initialize or update the analyzer with the current config
     analyzer = load_analyzer(config=updated_config)
 
-    # Create tabs for single text analysis and file upload
-    single_tab, batch_tab = st.tabs(["Single Text Analysis", "Batch File Analysis"])
-
-    with single_tab:
-        # Text input for analysis
-        text_input = st.text_area(
-            "Enter text to analyze for toxicity:", 
-            height=100, 
-            key="text_input",
-            placeholder="Type a sentence here to analyze it for toxicity..."
-        )
+    # Single text analysis section at the top
+    st.subheader("Single Text Analysis")
+    
+    # Text input for analysis
+    text_input = st.text_area(
+        "Enter text to analyze for toxicity:", 
+        height=100, 
+        key="text_input",
+        placeholder="Type a sentence here to analyze it for toxicity..."
+    )
+    
+    # Only analyze if there's text
+    if text_input:
+        # Check which mode we're in
+        groq_key_valid = st.session_state.get('groq_key_valid', False)
+        side_by_side_mode = st.session_state.get('side_by_side_mode', False) if groq_key_valid else False
+        groq_enabled = groq_api.is_enabled() if API_INTEGRATION_AVAILABLE and groq_api and groq_key_valid else False
         
-        # Only analyze if there's text
-        if text_input:
-            # Analyze the text with logging
-            result = analyze_text_with_logging(
-                analyzer, 
-                text_input,
-                log_individual_categories=st.session_state.get("log_detailed", False)
+        # Track if we should show Groq results
+        show_groq_results = groq_enabled and (side_by_side_mode or not side_by_side_mode)
+        
+        # Initialize results containers
+        primary_results = None
+        groq_results = None
+        primary_time = 0
+        groq_time = 0
+        
+        with st.spinner("Analyzing text..."):
+            # Always run primary model
+            st.info("Analyzing with primary model...")
+            start_time = time.time()
+            primary_results = analyze_with_primary_model(text_input)
+            primary_time = time.time() - start_time
+            
+            # Store in last_analysis_results
+            st.session_state.last_analysis_results["Primary Model"] = primary_results
+            
+            # Add to performance tracker
+            if PERFORMANCE_TRACKER_AVAILABLE:
+                st.session_state.performance_tracker.add_analysis(
+                    model_name="primary",
+                    text=text_input,
+                    results=primary_results,
+                    execution_time=primary_time
+                )
+            
+            # Run Groq if it's enabled (either for side-by-side or fallback)
+            if show_groq_results:
+                try:
+                    st.info("Analyzing with Groq API...")
+                    start_time = time.time()
+                    groq_results = groq_api.analyze_text(text_input)
+                    groq_time = time.time() - start_time
+                    
+                    # Store in last_analysis_results if successful
+                    if "error" not in groq_results:
+                        st.session_state.last_analysis_results["Groq API"] = groq_results
+                    
+                    # Add to performance tracker
+                    if PERFORMANCE_TRACKER_AVAILABLE and "error" not in groq_results:
+                        st.session_state.performance_tracker.add_analysis(
+                            model_name="groq",
+                            text=text_input,
+                            results=groq_results,
+                            execution_time=groq_time
+                        )
+                    elif "error" in groq_results:
+                        st.error(f"Groq analysis error: {groq_results['error']}")
+                        groq_results = None
+                except Exception as e:
+                    st.error(f"Error during Groq analysis: {str(e)}")
+                    groq_results = None
+        
+        # Display results based on mode
+        if side_by_side_mode and primary_results and groq_results:
+            # Side-by-side comparison mode
+            st.subheader("Side-by-Side Analysis Results")
+            
+            # Create a speed comparison box
+            speed_ratio = groq_time / primary_time if primary_time > 0 else 0
+            
+            speed_cols = st.columns(3)
+            with speed_cols[0]:
+                st.metric(
+                    "Primary Model Time", 
+                    f"{primary_time:.3f}s"
+                )
+            with speed_cols[1]:
+                st.metric(
+                    "Groq API Time", 
+                    f"{groq_time:.3f}s",
+                    f"{speed_ratio:.1f}x primary" if speed_ratio > 0 else ""
+                )
+            with speed_cols[2]:
+                faster_model = "Primary" if primary_time <= groq_time else "Groq"
+                speed_diff = abs(primary_time - groq_time)
+                st.metric(
+                    "Time Difference", 
+                    f"{speed_diff:.3f}s",
+                    f"{faster_model} is faster"
+                )
+            
+            # Calculate comparison metrics
+            comparison = compare_model_results({
+                "Primary Model": primary_results,
+                "Groq API": groq_results
+            })
+            
+            # Display side-by-side comparison
+            display_side_by_side_comparison(
+                primary_results=primary_results,
+                groq_results=groq_results,
+                comparison_metrics=comparison
             )
             
-            # Display the results
-            col1, col2 = st.columns([2, 3])
+            # Hint to check performance dashboard
+            st.info("👉 Check the Performance Analysis section in the sidebar to view historical performance trends and model calibration.")
             
-            with col1:
-                # Use the enhanced animated result component
-                animated_result(
-                    is_toxic=result["is_toxic"],
-                    category=result["category"],
-                    confidence=result["confidence"]
-                )
-                
-                # Show if Groq was used as fallback
-                if result.get("source") == "groq":
-                    status_message("⚡ Analysis provided by Groq AI")
+        else:
+            # Standard mode - show primary results
+            if primary_results:
+                st.subheader("Primary Model Analysis")
+                st.metric("Analysis Time", f"{primary_time:.3f}s")
+                display_toxicity_results(primary_results, "primary")
             
-            with col2:
-                # Create a dataframe for the probability chart
-                probs = result["probabilities"]
-                categories = list(probs.keys())
-                probabilities = list(probs.values())
-                
-                # Get thresholds for each category
-                thresholds = []
-                for cat in categories:
-                    threshold = updated_config.get("categories", {}).get(cat, updated_config["model"].get("threshold", 0.6))
-                    thresholds.append(threshold)
-                
-                # Sort by probability (descending)
-                sorted_indices = np.argsort(probabilities)[::-1]
-                categories = [categories[i] for i in sorted_indices]
-                probabilities = [probabilities[i] for i in sorted_indices]
-                thresholds = [thresholds[i] for i in sorted_indices]
-                
-                df = pd.DataFrame({
-                    'Category': [get_category_display_name(c) for c in categories],
-                    'Probability': probabilities,
-                    'Threshold': thresholds
-                })
-                
-                # Create the chart
-                chart = alt.Chart(df).mark_bar().encode(
-                    x=alt.X('Probability:Q', scale=alt.Scale(domain=[0, 1])),
-                    y=alt.Y('Category:N', sort=None),
-                    color=alt.Color('Probability:Q', 
-                                    scale=alt.Scale(domain=[0, 0.4, 0.6, 1], 
-                                                   range=['#3498db', '#f39c12', '#e74c3c', '#c0392b'])),
-                    tooltip=['Category', alt.Tooltip('Probability', format='.3f'), alt.Tooltip('Threshold', format='.2f')]
-                ).properties(
-                    title='Toxicity Probabilities',
-                    height=250
-                ).interactive()
-                
-                # Add threshold markers for each category
-                threshold_data = pd.DataFrame({
-                    'Category': df['Category'],
-                    'Threshold': df['Threshold']
-                })
-                
-                threshold_marks = alt.Chart(threshold_data).mark_rule(
-                    color='black',
-                    strokeDash=[3, 3],
-                    opacity=0.7
-                ).encode(
-                    x='Threshold:Q',
-                    y='Category:N'
-                )
-                
-                # Display the chart
-                st.altair_chart(chart + threshold_marks, use_container_width=True)
-                
-                # Add a small legend explaining the threshold markers
-                st.markdown("**Note:** Dashed lines indicate category-specific thresholds")
-            
-            # Category descriptions section
-            if result["is_toxic"]:
-                with st.expander("Category Description", expanded=True):
-                    st.markdown(f"### {get_category_display_name(result['category'])}")
-                    st.write(get_description(result["category"]))
-                    
-                    if "toxic_categories" in result and len(result["toxic_categories"]) > 1:
-                        st.markdown("### Other Detected Categories")
-                        for cat in result["toxic_categories"][1:]:  # Skip the first (main) category
-                            st.markdown(f"**{get_category_display_name(cat)}**: {get_description(cat)}")
-            
-            # Technical details
-            with st.expander("Technical Details", expanded=False):
-                st.json(result)
+            # If Groq is enabled but not in side-by-side mode, show as separate section
+            if groq_results and not side_by_side_mode:
+                st.subheader("Groq API Analysis")
+                st.metric("Analysis Time", f"{groq_time:.3f}s")
+                display_toxicity_results(groq_results, "groq")
+        
+        # Add a reminder about the export feature
+        st.success(
+            "✅ Analysis complete! Use the 'Export All' button at the top to "
+            "download a comprehensive report including these results."
+        )
 
-    with batch_tab:
-        # File upload section
-        file_upload_section(analyzer, updated_config)
+    # Performance Dashboard section below
+    if PERFORMANCE_TRACKER_AVAILABLE:
+        st.markdown("---")
+        st.subheader("Performance Analysis Dashboard")
+        display_performance_dashboard(
+            st.session_state.performance_tracker,
+            active_tab="Overview"
+        )
+
+    # File upload section in a separate tab
+    st.markdown("---")
+    st.subheader("Batch File Analysis")
+    file_upload_section(analyzer, updated_config)
 
 if __name__ == "__main__":
     main() 
