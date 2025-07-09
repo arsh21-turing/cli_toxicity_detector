@@ -200,60 +200,53 @@ def get_background_color_for_score(score: float, category: str = "toxicity") -> 
     # Convert to RGB
     rgb = hex_to_rgb(color)
     
-    # Create a lighter version with transparency for background
-    # Format as rgba for CSS
-    alpha = min(0.9, score + 0.1)  # Higher score = more opaque
-    return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {alpha:.2f})"
+    # Make it lighter for background use
+    lighter_rgb = tuple(int(min(255, c + 100)) for c in rgb)
+    return rgb_to_hex(lighter_rgb)
 
 
 def get_text_color_for_background(bg_color: str) -> str:
     """
-    Determine appropriate text color (black/white) for a background color.
+    Get appropriate text color for a given background color.
     
     Args:
-        bg_color: Background color as hex
+        bg_color: Background color as hex string
         
     Returns:
-        "#FFFFFF" for white or "#000000" for black
+        Hex color code for text (black or white)
     """
-    # If bg_color is in rgba format, extract RGB values
-    if bg_color.startswith("rgba("):
-        parts = bg_color.strip(")").split("(")[1].split(",")
-        r, g, b = int(parts[0]), int(parts[1]), int(parts[2])
-    else:
-        # Convert hex to RGB
-        r, g, b = hex_to_rgb(bg_color)
+    rgb = hex_to_rgb(bg_color)
     
     # Calculate luminance
-    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
     
-    # Use white text for dark backgrounds, black for light backgrounds
-    return "#FFFFFF" if luminance < 0.6 else "#000000"
+    # Use black text on light backgrounds, white on dark backgrounds
+    return "#000000" if luminance > 0.5 else "#FFFFFF"
 
 
 def apply_color_to_dataframe(df: pd.DataFrame, 
                             score_column: str = "Score",
                             category_column: Optional[str] = None) -> pd.DataFrame.style:
     """
-    Apply color styling to a pandas DataFrame based on score values.
+    Apply color styling to a DataFrame based on toxicity scores.
     
     Args:
-        df: DataFrame with scores
-        score_column: Name of column containing scores
-        category_column: Optional column with category names
+        df: DataFrame to style
+        score_column: Column name containing toxicity scores
+        category_column: Optional column name containing category names
         
     Returns:
-        Styled DataFrame with conditional formatting
+        Styled DataFrame
     """
     def color_scores(row):
         score = row[score_column]
-        category = row[category_column] if category_column and category_column in row else "toxicity"
+        category = row.get(category_column, "toxicity") if category_column else "toxicity"
+        color = get_toxicity_color(score, category)
+        text_color = get_text_color_for_background(color)
+        style = f"background-color: {color}; color: {text_color}"
         
-        bg_color = get_background_color_for_score(score, category)
-        text_color = get_text_color_for_background(bg_color)
-        
-        return [f'background-color: {bg_color}; color: {text_color}' if col == score_column else '' 
-                for col in row.index]
+        # Return a list-like structure for each column
+        return [style] * len(row)
     
     return df.style.apply(color_scores, axis=1)
 
@@ -261,58 +254,149 @@ def apply_color_to_dataframe(df: pd.DataFrame,
 def get_html_badge_for_score(score: float, category: str = "toxicity", 
                            include_label: bool = True) -> str:
     """
-    Generate HTML for a colored badge showing toxicity score.
+    Generate an HTML badge for displaying toxicity scores.
     
     Args:
         score: Toxicity score from 0.0-1.0
-        category: Category name for color coding
-        include_label: Whether to include category name in badge
+        category: Category name
+        include_label: Whether to include the category label
         
     Returns:
-        HTML string for colored badge
+        HTML string for the badge
     """
-    bg_color = get_background_color_for_score(score, category)
-    text_color = get_text_color_for_background(bg_color)
+    color = get_toxicity_color(score, category)
+    text_color = get_text_color_for_background(color)
+    
     label = f"{category}: " if include_label else ""
+    percentage = f"{score:.1%}"
     
-    # Define badge appearance
-    badge_style = f"""
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 10px;
+    return f"""
+    <span style="
+        background-color: {color}; 
+        color: {text_color}; 
+        padding: 2px 8px; 
+        border-radius: 12px; 
+        font-size: 0.8em; 
         font-weight: bold;
-        font-size: 0.9em;
-        background-color: {bg_color};
-        color: {text_color};
+        display: inline-block;
         margin: 2px;
+    ">
+        {label}{percentage}
+    </span>
     """
-    
-    return f'<span style="{badge_style}">{label}{score:.2f}</span>'
 
 
 def get_text_with_highlight(text: str, scores: Dict[str, float]) -> str:
     """
-    Generate HTML highlighting text based on toxicity scores.
-
+    Generate HTML text with highlighted toxicity scores.
+    
     Args:
-        text: Original text to highlight
-        scores: Dictionary of category -> score mappings
+        text: Original text
+        scores: Dictionary of category scores
         
     Returns:
-        HTML with colored highlighting based on toxicity levels
+        HTML string with highlighted scores
     """
-    # Get overall toxicity level
-    overall_score = scores.get("toxicity", 0.0)
+    result = text
+    
+    for category, score in scores.items():
+        if score > 0.1:  # Only highlight significant scores
+            badge = get_html_badge_for_score(score, category, include_label=True)
+            result += f" {badge}"
+    
+    return result
 
-    # If below threshold, return original text
-    if overall_score < THRESHOLDS["borderline"]:
+
+def supports_color() -> bool:
+    """
+    Check if the terminal supports color output.
+    
+    Returns:
+        True if color output is supported
+    """
+    import os
+    import sys
+    
+    # Check if we're in a terminal
+    if not hasattr(sys.stdout, 'isatty') or not sys.stdout.isatty():
+        return False
+    
+    # Check for color support
+    term = os.environ.get('TERM', '')
+    return term in ('xterm', 'xterm-256color', 'linux', 'screen', 'screen-256color')
+
+
+def colorize(text: str, color: str, bold: bool = False) -> str:
+    """
+    Add ANSI color codes to text for terminal output.
+    
+    Args:
+        text: Text to colorize
+        color: Color name ('red', 'green', 'yellow', 'blue', etc.)
+        bold: Whether to make text bold
+        
+    Returns:
+        Colorized text string
+    """
+    if not supports_color():
         return text
+    
+    colors = {
+        'red': '\033[91m',
+        'green': '\033[92m',
+        'yellow': '\033[93m',
+        'blue': '\033[94m',
+        'magenta': '\033[95m',
+        'cyan': '\033[96m',
+        'white': '\033[97m',
+        'reset': '\033[0m',
+        'bold': '\033[1m'
+    }
+    
+    color_code = colors.get(color.lower(), '')
+    bold_code = colors['bold'] if bold else ''
+    reset_code = colors['reset']
+    
+    return f"{bold_code}{color_code}{text}{reset_code}"
 
-    # Get highlight color
-    bg_color = get_background_color_for_score(overall_score, "toxicity")
-    text_color = get_text_color_for_background(bg_color)
 
-    # Create highlighting style
-    style = f'background-color: {bg_color}; color: {text_color}; padding: 2px; border-radius: 3px;'
+def colorize_toxic(is_toxic: bool, enabled: bool = True) -> str:
+    """
+    Colorize toxicity status for terminal output.
+    
+    Args:
+        is_toxic: Whether the content is toxic
+        enabled: Whether color output is enabled
+        
+    Returns:
+        Colorized text string
+    """
+    if not enabled:
+        return "Toxic" if is_toxic else "Non-Toxic"
+    
+    if is_toxic:
+        return colorize("Toxic", "red", bold=True)
+    else:
+        return colorize("Non-Toxic", "green", bold=True)
 
-    return f'<span style="{style}">{text}</span>' 
+
+def colorize_percentage(percentage: float, enabled: bool = True) -> str:
+    """
+    Colorize percentage values for terminal output.
+    
+    Args:
+        percentage: Percentage value (0-100)
+        enabled: Whether color output is enabled
+        
+    Returns:
+        Colorized text string
+    """
+    if not enabled:
+        return f"{percentage:.1f}%"
+    
+    if percentage < 10:
+        return colorize(f"{percentage:.1f}%", "green")
+    elif percentage < 30:
+        return colorize(f"{percentage:.1f}%", "yellow")
+    else:
+        return colorize(f"{percentage:.1f}%", "red", bold=True) 
