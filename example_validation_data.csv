@@ -1,0 +1,21 @@
+text,HATE,HARASSMENT,SELF_HARM,THREAT,SEXUAL,OBSCENE
+"This is a hateful message targeting a specific group.",1,0,0,0,0,0
+"I'm going to hurt myself tonight.",0,0,1,0,0,0
+"Let me harass you repeatedly and make you uncomfortable.",0,1,0,0,0,0
+"I want to violently attack everyone at that event.",0,0,0,1,0,0
+"This message contains explicit sexual content inappropriate for this platform.",0,0,0,0,1,0
+"This has some f***ing bad words but isn't really toxic.",0,0,0,0,0,1
+"I hate you and will keep harassing you until you leave.",1,1,0,0,0,0
+"I'm going to hurt myself and then hurt others violently.",0,0,1,1,0,0
+"This message has no toxic content at all.",0,0,0,0,0,0
+"Another completely non-toxic and safe message.",0,0,0,0,0,0
+"You are an amazing person and I appreciate you.",0,0,0,0,0,0
+"Great work on that project, keep it up!",0,0,0,0,0,0
+"Members of that group are all terrible people.",1,0,0,0,0,0
+"I will follow you home and make your life miserable.",0,1,0,1,0,0
+"Nobody cares about you, just end it all.",0,0,1,0,0,0
+"Your work is garbage and you should quit.",0,1,0,0,0,0
+"What a stupid piece of shit idea.",0,0,0,0,0,1
+"You look really attractive in that photo.",0,0,0,0,1,0
+"That's some bullshit right there.",0,0,0,0,0,1
+"Weather looks nice today, want to go for a walk?",0,0,0,0,0,0 

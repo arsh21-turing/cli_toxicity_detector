@@ -485,6 +485,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mode_grp.add_argument("--file", help="Analyse a .txt file line-by-line")
     mode_grp.add_argument("--batch", help="Process a file or directory in batch mode")
     mode_grp.add_argument("--stream", action="store_true", help="Process text from stdin in real-time streaming mode")
+    mode_grp.add_argument("--evaluate", help="Run model evaluation on a validation dataset CSV file")
     mode_grp.add_argument(
         "--create-config",
         action="store_true",
@@ -571,7 +572,90 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["highest", "lowest"],
         help="Sort results by confidence level (highest or lowest first)",
     )
-
+    
+    # Evaluation options -------------------------------------------------
+    p.add_argument(
+        "--evaluation-output",
+        help="Path to save evaluation results JSON file",
+    )
+    p.add_argument(
+        "--no-headers",
+        action="store_true",
+        help="CSV validation dataset does not have headers",
+    )
+    p.add_argument(
+        "--eval-threshold",
+        type=float,
+        default=0.5,
+        help="Default threshold for all categories during evaluation (default: 0.5)",
+    )
+    p.add_argument(
+        "--category-thresholds",
+        help="JSON file with per-category thresholds for evaluation",
+    )
+    p.add_argument(
+        "--optimize-thresholds",
+        action="store_true",
+        help="Optimize thresholds for best F1 score",
+    )
+    p.add_argument(
+        "--min-threshold",
+        type=float,
+        default=0.1,
+        help="Minimum threshold to test during optimization (default: 0.1)",
+    )
+    p.add_argument(
+        "--max-threshold",
+        type=float,
+        default=0.9,
+        help="Maximum threshold to test during optimization (default: 0.9)",
+    )
+    p.add_argument(
+        "--threshold-step",
+        type=float,
+        default=0.05,
+        help="Step size for threshold testing during optimization (default: 0.05)",
+    )
+    p.add_argument(
+        "--save-thresholds",
+        action="store_true",
+        help="Save optimal thresholds to configuration file",
+    )
+    p.add_argument(
+        "--config-path",
+        help="Path to configuration file for saving optimal thresholds",
+    )
+    
+    # Visualization options ------------------------------------------------
+    viz_group = p.add_argument_group("Visualization Options")
+    viz_group.add_argument("--plot-dir", 
+                         help="Directory where plot files will be saved")
+    viz_group.add_argument("--plot-format", default="both",
+                         choices=["png", "svg", "both"],
+                         help="Format for plot files (png, svg, or both)")
+    viz_group.add_argument("--plot-dpi", type=int, default=300,
+                         help="DPI for raster image formats")
+    viz_group.add_argument("--plot-pr-curves", action="store_true",
+                         help="Generate precision-recall curves")
+    viz_group.add_argument("--plot-threshold-sweep", action="store_true",
+                         help="Generate threshold sweep plots")
+    viz_group.add_argument("--plot-confusion-matrices", action="store_true",
+                         help="Generate confusion matrix heatmaps")
+    viz_group.add_argument("--plot-all", action="store_true",
+                         help="Generate all available plot types")
+    viz_group.add_argument("--selected-categories", 
+                         help="Comma-separated list of categories to plot")
+    
+    # PDF report arguments
+    viz_group.add_argument("--generate-pdf", action="store_true",
+                         help="Generate a comprehensive PDF report")
+    viz_group.add_argument("--pdf-path", 
+                         help="Path for the PDF report (default: evaluation_report.pdf in plot-dir)")
+    viz_group.add_argument("--report-title", default="Model Evaluation Report",
+                         help="Custom title for the PDF report")
+    viz_group.add_argument("--report-template",
+                         help="Path to custom report template (optional)")
+    
     # Inject threshold args after core flags to keep help tidy
     create_threshold_argument(p)
 
@@ -587,6 +671,54 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Display statistics about the Groq API response cache and exit",
     )
+    
+    mode_grp.add_argument("--setup-config", action="store_true",
+                        help="Launch the interactive configuration wizard")
+    
+    mode_grp.add_argument("--compare-models", action="store_true",
+                        help="Compare multiple models on the same validation dataset")
+    
+    # Configuration wizard arguments (non-exclusive)
+    wizard_group = p.add_argument_group("Configuration Wizard")
+    wizard_group.add_argument("--config-output",
+                            help="Path to save the generated config file (default: config.yaml)")
+    wizard_group.add_argument("--wizard-defaults", 
+                            choices=["high_precision", "high_recall", "balanced", "performance", "custom"],
+                            help="Start with recommended defaults for specific use case profile")
+    
+    # Model comparison arguments
+    compare_group = p.add_argument_group("Model Comparison")
+    compare_group.add_argument("--model-paths", 
+                             help="Comma-separated list of model paths to compare")
+    compare_group.add_argument("--model-names", 
+                             help="Optional comma-separated list of friendly names for the models")
+    compare_group.add_argument("--config-paths", 
+                             help="Optional comma-separated list of config paths for each model")
+    compare_group.add_argument("--comparison-output", 
+                             help="Directory to save comparison results and visualizations")
+    compare_group.add_argument("--comparative-plots", action="store_true",
+                             help="Generate comparative visualization plots across models")
+    compare_group.add_argument("--significance-test", action="store_true",
+                             help="Run statistical significance tests on model differences")
+    compare_group.add_argument("--comparative-report", action="store_true",
+                             help="Generate a PDF report comparing all models")
+    compare_group.add_argument("--comparison-focus", choices=["precision", "recall", "f1"],
+                             help="Focus comparison on specific metrics")
+
+    # Performance monitoring arguments
+    monitor_group = p.add_argument_group("Performance Monitoring")
+    monitor_group.add_argument("--monitor", action="store_true",
+                             help="Enable real-time monitoring dashboard during batch processing")
+    monitor_group.add_argument("--monitor-interval", type=float, default=1.0,
+                             help="Time interval in seconds between dashboard updates")
+    monitor_group.add_argument("--monitor-metrics", 
+                             help="Comma-separated list of metrics to display (default: all)")
+    monitor_group.add_argument("--monitor-log", 
+                             help="Save monitoring data to log file")
+    monitor_group.add_argument("--monitor-port", type=int, default=8050,
+                             help="Port to use for web-based monitoring dashboard")
+    monitor_group.add_argument("--monitor-headless", action="store_true",
+                             help="Run monitoring in headless mode (no UI, metrics logging only)")
 
     return p
 
@@ -1744,14 +1876,65 @@ def handle_batch_processing(args: argparse.Namespace) -> Dict[str, Any]:
     if hasattr(args, 'confidence_sort') and args.confidence_sort is not None:
         cfg['confidence_sort'] = args.confidence_sort
 
-    results = batch_process(
-        input_path=input_path,
-        output_path=output_path,
-        model=model_obj,
-        config=cfg,
-        show_progress=not getattr(args, "json", False) and not getattr(args, "quiet", False),
-        selected_categories=selected_categories,
-    )
+    # Initialize monitoring if requested
+    monitoring_context = None
+    if getattr(args, "monitor", False):
+        try:
+            from monitor import start_monitoring, stop_monitoring
+            
+            # Configure monitoring
+            monitor_config = {
+                "log_path": getattr(args, "monitor_log", None),
+                "headless": getattr(args, "monitor_headless", False),
+                "update_interval": getattr(args, "monitor_interval", 1.0),
+            }
+            
+            if getattr(args, "monitor_metrics", None):
+                monitor_config["metrics"] = [m.strip() for m in args.monitor_metrics.split(",")]
+            
+            # Start monitoring
+            monitoring_context = start_monitoring(monitor_config)
+            
+        except ImportError:
+            print("Warning: Monitoring requires 'rich' and 'psutil' packages. Install them with: pip install rich psutil")
+            monitoring_context = None
+        except Exception as e:
+            print(f"Warning: Failed to start monitoring: {str(e)}")
+            monitoring_context = None
+
+    try:
+        results = batch_process(
+            input_path=input_path,
+            output_path=output_path,
+            model=model_obj,
+            config=cfg,
+            show_progress=not getattr(args, "json", False) and not getattr(args, "quiet", False),
+            selected_categories=selected_categories,
+            monitor=monitoring_context,
+        )
+    finally:
+        # Stop monitoring if it was started
+        if monitoring_context:
+            try:
+                summary = stop_monitoring(monitoring_context)
+                
+                # Display summary if not in quiet mode
+                if not getattr(args, "quiet", False) and not getattr(args, "json", False):
+                    print("\nMonitoring Summary:")
+                    print("-" * 80)
+                    print(f"Total processing time: {summary['elapsed_seconds']:.2f} seconds")
+                    print(f"Total texts processed: {summary['processed_texts']}")
+                    print(f"Average throughput: {summary['avg_throughput']:.2f} texts/second")
+                    print(f"Average latency: {summary['avg_latency'] * 1000:.2f} ms")
+                    print(f"API calls: {summary['api_calls']} ({summary['api_errors']} errors)")
+                    print(f"Error rate: {summary['error_rate'] * 100:.2f}%")
+                    print(f"Toxic content: {summary['toxic_texts']} ({summary['toxic_percentage']:.1f}%)")
+                    
+                    if getattr(args, "monitor_log", None):
+                        print(f"Detailed monitoring log saved to: {args.monitor_log}")
+                        
+            except Exception as e:
+                print(f"Warning: Error stopping monitoring: {str(e)}")
 
     # Timestamp for traceability ---------------------------------------
     results["timestamp"] = datetime.now().isoformat(timespec="seconds")
@@ -1763,6 +1946,421 @@ def handle_batch_processing(args: argparse.Namespace) -> Dict[str, Any]:
         display_batch_results(results, args)
 
     return results
+
+
+def handle_wizard(args):
+    """Handle configuration wizard based on command line arguments."""
+    try:
+        from config_wizard import setup_wizard
+        
+        if not args.setup_config:
+            return False
+        
+        try:
+            config_path = setup_wizard(
+                wizard_mode=args.wizard_defaults,
+                output_path=args.config_output,
+                non_interactive=getattr(args, 'non_interactive', False)
+            )
+            print(f"Configuration wizard completed successfully. Config saved to: {config_path}")
+            return True
+        except KeyboardInterrupt:
+            print("\nConfiguration wizard cancelled by user.")
+            return True
+        except Exception as e:
+            print(f"Error running configuration wizard: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return True
+    except ImportError:
+        print("Error: Configuration wizard requires the 'inquirer' package.")
+        print("Please install it using: pip install inquirer")
+        return True
+
+
+def handle_comparison(args):
+    """Handle model comparison based on command line arguments."""
+    from evaluator import load_validation_dataset
+    from model_loader import get_model
+    from config_loader import load_config
+    from model_comparison import (
+        compare_models, generate_comparative_plots, display_comparison_results,
+        statistical_significance, generate_comparative_report
+    )
+    
+    if not args.compare_models:
+        return False
+    
+    # Check required arguments
+    if not args.model_paths:
+        print("Error: --model-paths is required for model comparison")
+        return True
+    
+    if not args.evaluate:
+        print("Error: --evaluate is required to specify validation dataset")
+        return True
+    
+    # Load validation dataset
+    print(f"Loading validation dataset from {args.evaluate}...")
+    texts, labels = load_validation_dataset(args.evaluate, not args.no_headers)
+    
+    # Split model paths and names
+    model_paths = [path.strip() for path in args.model_paths.split(",")]
+    
+    if args.model_names:
+        model_names = [name.strip() for name in args.model_names.split(",")]
+    else:
+        # Use filenames as model names
+        model_names = [Path(path).stem for path in model_paths]
+    
+    # Check if we have the same number of names as models
+    if len(model_names) != len(model_paths):
+        print(f"Warning: Number of model names ({len(model_names)}) doesn't match number of models ({len(model_paths)})")
+        # Use default naming if mismatch
+        model_names = [f"Model_{i+1}" for i in range(len(model_paths))]
+    
+    # Parse config paths if provided
+    config_paths = []
+    if args.config_paths:
+        config_paths = [path.strip() for path in args.config_paths.split(",")]
+        
+        # Check if we have the same number of configs as models
+        if len(config_paths) != len(model_paths):
+            print(f"Warning: Number of config paths ({len(config_paths)}) doesn't match number of models ({len(model_paths)})")
+            # Use None for missing configs
+            if len(config_paths) < len(model_paths):
+                config_paths.extend([None] * (len(model_paths) - len(config_paths)))
+    else:
+        # Use default config for all models
+        config_paths = [None] * len(model_paths)
+    
+    # Set up output directory
+    output_dir = args.comparison_output or "model_comparison_results"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Load models
+    print("Loading models...")
+    models_dict = {}
+    thresholds = {}
+    
+    for i, (model_path, model_name, config_path) in enumerate(zip(model_paths, model_names, config_paths)):
+        print(f"Loading model {i+1}/{len(model_paths)}: {model_name}")
+        
+        try:
+            # Load model and config
+            model = get_model(model_name=model_path)
+            config = load_config(config_path) if config_path else None
+            
+            # Add to models dictionary
+            models_dict[model_name] = model
+            
+            # Extract thresholds from config if available
+            if config and "thresholds" in config:
+                thresholds[model_name] = config["thresholds"]
+            
+        except Exception as e:
+            print(f"Error loading model {model_name}: {str(e)}")
+            print("Skipping this model in the comparison")
+    
+    if not models_dict:
+        print("Error: No models could be loaded for comparison")
+        return True
+    
+    print(f"Successfully loaded {len(models_dict)} models for comparison")
+    
+    # Run comparison
+    print("Comparing models on validation dataset...")
+    comparison_results = compare_models(
+        models_dict, texts, labels, thresholds=thresholds
+    )
+    
+    # Run significance tests if requested
+    if args.significance_test:
+        print("Running statistical significance tests...")
+        significance_results = statistical_significance(comparison_results)
+        comparison_results["significance"] = significance_results
+    
+    # Display results
+    display_comparison_results(comparison_results, detailed=True)
+    
+    # Generate comparative plots if requested
+    if args.comparative_plots:
+        print(f"Generating comparative plots in {output_dir}...")
+        plot_files = generate_comparative_plots(
+            comparison_results,
+            output_dir,
+            plot_types=["bar", "radar", "confusion"],
+            dpi=getattr(args, 'plot_dpi', 300),
+            fmt=getattr(args, 'plot_format', 'both')
+        )
+        print(f"Generated {len(plot_files)} comparative plots")
+    
+    # Generate comparative report if requested
+    if args.comparative_report:
+        print("Generating comparative PDF report...")
+        report_path = Path(output_dir) / "model_comparison_report.pdf"
+        report_file = generate_comparative_report(
+            comparison_results,
+            str(report_path),
+            include_plots=True,
+            title="Toxicity Classification Model Comparison"
+        )
+        print(f"Comparative report saved to: {report_file}")
+    
+    # Export comparison results to JSON
+    results_path = Path(output_dir) / "comparison_results.json"
+    with open(results_path, 'w') as f:
+        json.dump(comparison_results, f, indent=2, default=str)
+    
+    print(f"Comparison results saved to: {results_path}")
+    return True
+
+
+def handle_visualization(args, optimization_results, evaluation_results):
+    """Handle visualization generation based on command line arguments."""
+    from evaluator import (
+        plot_precision_recall_curve, plot_threshold_sweep, 
+        plot_confusion_matrices, generate_pdf_report
+    )
+    
+    # Check if any plot type is requested
+    plot_requested = (
+        hasattr(args, 'plot_pr_curves') and args.plot_pr_curves or 
+        hasattr(args, 'plot_threshold_sweep') and args.plot_threshold_sweep or 
+        hasattr(args, 'plot_confusion_matrices') and args.plot_confusion_matrices or 
+        hasattr(args, 'plot_all') and args.plot_all or
+        hasattr(args, 'generate_pdf') and args.generate_pdf
+    )
+    
+    if not plot_requested or not (hasattr(args, 'plot_dir') and args.plot_dir or hasattr(args, 'pdf_path') and args.pdf_path):
+        return
+    
+    # Prepare plot directory if specified
+    plot_dir = None
+    if hasattr(args, 'plot_dir') and args.plot_dir:
+        plot_dir = Path(args.plot_dir)
+        plot_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Prepare categories if specified
+    selected_categories = None
+    if hasattr(args, 'selected_categories') and args.selected_categories:
+        selected_categories = [cat.strip() for cat in args.selected_categories.split(',')]
+    
+    # Get plot format and DPI
+    plot_format = getattr(args, 'plot_format', 'both')
+    plot_dpi = getattr(args, 'plot_dpi', 300)
+    
+    try:
+        # Generate plots based on arguments (only if plot_dir is specified)
+        if plot_dir:
+            if (hasattr(args, 'plot_pr_curves') and args.plot_pr_curves) or (hasattr(args, 'plot_all') and args.plot_all):
+                if optimization_results:
+                    try:
+                        auprc_scores = plot_precision_recall_curve(
+                            optimization_results,
+                            plot_dir,
+                            categories=selected_categories,
+                            dpi=plot_dpi,
+                            fmt=plot_format
+                        )
+                        print(f"AUPRC Scores: {', '.join([f'{k}: {v:.3f}' for k, v in auprc_scores.items()])}")
+                    except Exception as e:
+                        print(f"Warning: Error generating precision-recall curves: {str(e)}")
+                else:
+                    print("Warning: Precision-recall curves require threshold optimization results.")
+            
+            if (hasattr(args, 'plot_threshold_sweep') and args.plot_threshold_sweep) or (hasattr(args, 'plot_all') and args.plot_all):
+                if optimization_results:
+                    try:
+                        plot_files = plot_threshold_sweep(
+                            optimization_results,
+                            plot_dir,
+                            categories=selected_categories,
+                            dpi=plot_dpi,
+                            fmt=plot_format
+                        )
+                    except Exception as e:
+                        print(f"Warning: Error generating threshold sweep plots: {str(e)}")
+                else:
+                    print("Warning: Threshold sweep plots require threshold optimization results.")
+            
+            if (hasattr(args, 'plot_confusion_matrices') and args.plot_confusion_matrices) or (hasattr(args, 'plot_all') and args.plot_all):
+                if evaluation_results:
+                    try:
+                        plot_files = plot_confusion_matrices(
+                            evaluation_results,
+                            plot_dir,
+                            categories=selected_categories,
+                            dpi=plot_dpi,
+                            fmt=plot_format
+                        )
+                    except Exception as e:
+                        print(f"Warning: Error generating confusion matrix plots: {str(e)}")
+                else:
+                    print("Warning: Confusion matrix plots require evaluation results.")
+                
+    except ImportError as e:
+        print(f"Error: {e}")
+        print("To use visualization features, install the required packages:")
+        print("pip install matplotlib scikit-learn")
+    
+    # Generate PDF report if requested
+    if hasattr(args, 'generate_pdf') and args.generate_pdf:
+        if evaluation_results:
+            try:
+                # Determine PDF path
+                pdf_path = getattr(args, 'pdf_path', None)
+                if not pdf_path:
+                    if hasattr(args, 'plot_dir') and args.plot_dir:
+                        pdf_path = Path(args.plot_dir) / "evaluation_report.pdf"
+                    else:
+                        pdf_path = "evaluation_report.pdf"
+                
+                # Generate the report
+                report_path = generate_pdf_report(
+                    evaluation_results,
+                    pdf_path,
+                    optimization_results=optimization_results,
+                    title=getattr(args, 'report_title', "Model Evaluation Report"),
+                    template_path=getattr(args, 'report_template', None)
+                )
+                print(f"PDF report generated: {report_path}")
+            except ImportError as e:
+                print(f"Error: {e}")
+                print("To use PDF report generation, install the required packages:")
+                print("pip install reportlab matplotlib")
+            except Exception as e:
+                print(f"Error generating PDF report: {str(e)}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("Warning: PDF report generation requires evaluation results.")
+
+
+def handle_evaluation(args: argparse.Namespace) -> Dict[str, Any]:
+    """
+    Handle model evaluation on a validation dataset.
+    
+    Args:
+        args: Command line arguments containing evaluation parameters
+        
+    Returns:
+        Dictionary containing evaluation results
+    """
+    from evaluator import (
+        load_validation_dataset, 
+        evaluate_model, 
+        display_evaluation_results, 
+        export_evaluation_results,
+        optimize_thresholds,
+        display_threshold_optimization,
+        save_optimal_thresholds
+    )
+    
+    print(f"Loading validation dataset from {args.evaluate}...")
+    texts, labels = load_validation_dataset(args.evaluate, has_header=not args.no_headers)
+    
+    print(f"Dataset loaded: {len(texts)} samples with {len(labels)} categories")
+    print(f"Categories: {', '.join(labels.keys())}")
+    
+    # Load model and configuration
+    model_obj = load_model(model_name=args.model or "unitary/toxic-bert")
+    cfg = load_config()
+    
+    # Check if threshold optimization is requested
+    if hasattr(args, 'optimize_thresholds') and args.optimize_thresholds:
+        print("Starting threshold optimization...")
+        
+        # Run threshold optimization
+        optimization_results = optimize_thresholds(
+            model=model_obj,
+            texts=texts,
+            labels=labels,
+            threshold_range=(args.min_threshold, args.max_threshold),
+            step_size=args.threshold_step,
+            parallel=True  # Use parallel processing for better performance
+        )
+        
+        # Display optimization results
+        display_threshold_optimization(optimization_results)
+        
+        # Save optimal thresholds if requested
+        if hasattr(args, 'save_thresholds') and args.save_thresholds:
+            config_path = args.config_path or "toxicity_detector.yaml"
+            if not Path(config_path).exists():
+                # Create a basic config file if it doesn't exist
+                basic_config = {
+                    "model": {"name": args.model or "unitary/toxic-bert"},
+                    "thresholds": optimization_results['optimal_thresholds']
+                }
+                
+                with open(config_path, 'w') as f:
+                    if config_path.endswith('.json'):
+                        json.dump(basic_config, f, indent=2)
+                    else:
+                        import yaml
+                        yaml.dump(basic_config, f, default_flow_style=False)
+                
+                print(f"Created new configuration file with optimal thresholds: {config_path}")
+            else:
+                save_optimal_thresholds(optimization_results['optimal_thresholds'], config_path)
+                print(f"Saved optimal thresholds to configuration file: {config_path}")
+        
+        # Export optimization results if requested
+        if args.evaluation_output:
+            output_data = {
+                "optimization_results": optimization_results,
+                "optimal_thresholds": optimization_results['optimal_thresholds'],
+                "default_evaluation": optimization_results['default_results'],
+                "optimized_evaluation": optimization_results['optimized_results']
+            }
+            export_evaluation_results(output_data, args.evaluation_output)
+        
+        # Generate visualizations if requested
+        handle_visualization(args, optimization_results, optimization_results['optimized_results'])
+        
+        return optimization_results
+    
+    else:
+        # Standard evaluation without optimization
+        
+        # Load category-specific thresholds if specified
+        thresholds = None
+        if args.category_thresholds:
+            print(f"Loading category thresholds from {args.category_thresholds}...")
+            with open(args.category_thresholds, 'r') as f:
+                if args.category_thresholds.endswith('.yaml') or args.category_thresholds.endswith('.yml'):
+                    import yaml
+                    config_data = yaml.safe_load(f)
+                    # Extract thresholds from config structure
+                    thresholds = config_data.get('thresholds', config_data)
+                else:
+                    thresholds = json.load(f)
+        elif args.eval_threshold != 0.5:
+            # Apply the same threshold to all categories
+            thresholds = {category: args.eval_threshold for category in labels.keys()}
+            print(f"Using threshold {args.eval_threshold} for all categories")
+        else:
+            # Use default thresholds from config or 0.5
+            thresholds = cfg.get("thresholds", {})
+            if not thresholds:
+                thresholds = {category: 0.5 for category in labels.keys()}
+            print("Using default thresholds")
+        
+        print(f"Evaluating model on {len(texts)} samples...")
+        eval_results = evaluate_model(model_obj, texts, labels, thresholds=thresholds)
+        
+        # Display results
+        display_evaluation_results(eval_results)
+        
+        # Export results if requested
+        if args.evaluation_output:
+            export_evaluation_results(eval_results, args.evaluation_output)
+        
+        # Generate visualizations if requested
+        handle_visualization(args, None, eval_results)
+        
+        return eval_results
 
 
 # ---------------------------------------------------------------------------
@@ -1872,6 +2470,16 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: C901 – clarity
         # Nothing else to do
         return 0
 
+    # Handle configuration wizard if requested (before other command checks)
+    if args.setup_config:
+        if handle_wizard(args):
+            return 0
+
+    # Handle model comparison if requested
+    if args.compare_models:
+        if handle_comparison(args):
+            return 0
+
     if args.text:
         # Use _process_single to support confidence filtering
         res = _process_single(args.text, cfg=cfg, args=args)
@@ -1902,6 +2510,10 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: C901 – clarity
     
     if args.stream:
         handle_stream_processing(args)
+        return 0
+    
+    if args.evaluate:
+        handle_evaluation(args)
         return 0
 
     # Default: show help if no command specified

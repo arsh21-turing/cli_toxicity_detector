@@ -1,0 +1,5 @@
+text,label
+This is a normal sentence.,normal
+This is an insulting comment.,toxic
+This is a hateful statement.,toxic
+This is another normal sentence.,normal

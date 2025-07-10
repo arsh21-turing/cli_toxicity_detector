@@ -1,0 +1,15 @@
+thresholds:
+  hate: 0.5
+  harassment: 0.55
+  self_harm: 0.6
+  sexual: 0.55
+  violence: 0.5
+  profanity: 0.45
+model:
+  name: toxicity-classifier
+  version: 1.0.0
+  fallback_mode: balanced
+processing:
+  batch_size: 32
+  confidence_threshold: 0.6
+  low_confidence_fallback: true

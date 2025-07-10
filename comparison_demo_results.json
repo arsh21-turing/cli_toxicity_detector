@@ -1,0 +1,582 @@
+{
+  "per_model": {
+    "Precision-Focused": {
+      "overall": {
+        "precision": 0.75,
+        "recall": 0.5,
+        "f1": 0.6,
+        "predictions": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0
+        ]
+      },
+      "per_category": {
+        "hate": {
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8,
+          "predictions": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0
+          ]
+        },
+        "harassment": {
+          "precision": 0.5,
+          "recall": 0.3333333333333333,
+          "f1": 0.4,
+          "predictions": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0
+          ]
+        }
+      },
+      "confusion_matrices": {
+        "hate": [
+          [
+            7,
+            0
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "harassment": [
+          [
+            6,
+            1
+          ],
+          [
+            2,
+            1
+          ]
+        ]
+      }
+    },
+    "Recall-Focused": {
+      "overall": {
+        "precision": 1.0,
+        "recall": 0.3333333333333333,
+        "f1": 0.5,
+        "predictions": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "per_category": {
+        "hate": {
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5,
+          "predictions": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "harassment": {
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5,
+          "predictions": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "confusion_matrices": {
+        "hate": [
+          [
+            7,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ],
+        "harassment": [
+          [
+            7,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ]
+      }
+    },
+    "Balanced": {
+      "overall": {
+        "precision": 1.0,
+        "recall": 0.3333333333333333,
+        "f1": 0.5,
+        "predictions": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "per_category": {
+        "hate": {
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5,
+          "predictions": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "harassment": {
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5,
+          "predictions": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "confusion_matrices": {
+        "hate": [
+          [
+            7,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ],
+        "harassment": [
+          [
+            7,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ]
+      }
+    }
+  },
+  "comparative": {
+    "overall": {},
+    "per_category": {
+      "hate": {},
+      "harassment": {}
+    },
+    "relative_performance": {
+      "Precision-Focused_vs_Recall-Focused": {
+        "overall": {
+          "precision": {
+            "absolute_difference": -0.25,
+            "relative_difference_percent": -25.0,
+            "better_model": "Recall-Focused"
+          },
+          "recall": {
+            "absolute_difference": 0.16666666666666669,
+            "relative_difference_percent": 50.000000000000014,
+            "better_model": "Precision-Focused"
+          },
+          "f1": {
+            "absolute_difference": 0.09999999999999998,
+            "relative_difference_percent": 19.999999999999996,
+            "better_model": "Precision-Focused"
+          }
+        },
+        "per_category": {
+          "hate": {
+            "precision": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "recall": {
+              "absolute_difference": 0.3333333333333333,
+              "relative_difference_percent": 100.0,
+              "better_model": "Precision-Focused"
+            },
+            "f1": {
+              "absolute_difference": 0.30000000000000004,
+              "relative_difference_percent": 60.00000000000001,
+              "better_model": "Precision-Focused"
+            }
+          },
+          "harassment": {
+            "precision": {
+              "absolute_difference": -0.5,
+              "relative_difference_percent": -50.0,
+              "better_model": "Recall-Focused"
+            },
+            "recall": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "f1": {
+              "absolute_difference": -0.09999999999999998,
+              "relative_difference_percent": -19.999999999999996,
+              "better_model": "Recall-Focused"
+            }
+          }
+        }
+      },
+      "Precision-Focused_vs_Balanced": {
+        "overall": {
+          "precision": {
+            "absolute_difference": -0.25,
+            "relative_difference_percent": -25.0,
+            "better_model": "Balanced"
+          },
+          "recall": {
+            "absolute_difference": 0.16666666666666669,
+            "relative_difference_percent": 50.000000000000014,
+            "better_model": "Precision-Focused"
+          },
+          "f1": {
+            "absolute_difference": 0.09999999999999998,
+            "relative_difference_percent": 19.999999999999996,
+            "better_model": "Precision-Focused"
+          }
+        },
+        "per_category": {
+          "hate": {
+            "precision": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "recall": {
+              "absolute_difference": 0.3333333333333333,
+              "relative_difference_percent": 100.0,
+              "better_model": "Precision-Focused"
+            },
+            "f1": {
+              "absolute_difference": 0.30000000000000004,
+              "relative_difference_percent": 60.00000000000001,
+              "better_model": "Precision-Focused"
+            }
+          },
+          "harassment": {
+            "precision": {
+              "absolute_difference": -0.5,
+              "relative_difference_percent": -50.0,
+              "better_model": "Balanced"
+            },
+            "recall": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "f1": {
+              "absolute_difference": -0.09999999999999998,
+              "relative_difference_percent": -19.999999999999996,
+              "better_model": "Balanced"
+            }
+          }
+        }
+      },
+      "Recall-Focused_vs_Balanced": {
+        "overall": {
+          "precision": {
+            "absolute_difference": 0.0,
+            "relative_difference_percent": 0.0,
+            "better_model": "tie"
+          },
+          "recall": {
+            "absolute_difference": 0.0,
+            "relative_difference_percent": 0.0,
+            "better_model": "tie"
+          },
+          "f1": {
+            "absolute_difference": 0.0,
+            "relative_difference_percent": 0.0,
+            "better_model": "tie"
+          }
+        },
+        "per_category": {
+          "hate": {
+            "precision": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "recall": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "f1": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            }
+          },
+          "harassment": {
+            "precision": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "recall": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            },
+            "f1": {
+              "absolute_difference": 0.0,
+              "relative_difference_percent": 0.0,
+              "better_model": "tie"
+            }
+          }
+        }
+      }
+    },
+    "agreement": {
+      "hate": {
+        "Precision-Focused_vs_Recall-Focused": {
+          "agreement_rate": 0.9,
+          "agreements": 9,
+          "total": 10
+        },
+        "Precision-Focused_vs_Balanced": {
+          "agreement_rate": 0.9,
+          "agreements": 9,
+          "total": 10
+        },
+        "Recall-Focused_vs_Balanced": {
+          "agreement_rate": 1.0,
+          "agreements": 10,
+          "total": 10
+        }
+      },
+      "harassment": {
+        "Precision-Focused_vs_Recall-Focused": {
+          "agreement_rate": 0.9,
+          "agreements": 9,
+          "total": 10
+        },
+        "Precision-Focused_vs_Balanced": {
+          "agreement_rate": 0.9,
+          "agreements": 9,
+          "total": 10
+        },
+        "Recall-Focused_vs_Balanced": {
+          "agreement_rate": 1.0,
+          "agreements": 10,
+          "total": 10
+        }
+      }
+    }
+  },
+  "winner": {
+    "overall": {
+      "precision": {
+        "model": "Recall-Focused",
+        "value": 1.0
+      },
+      "recall": {
+        "model": "Precision-Focused",
+        "value": 0.5
+      },
+      "f1": {
+        "model": "Precision-Focused",
+        "value": 0.6
+      }
+    },
+    "per_category": {
+      "hate": {
+        "precision": {
+          "model": "Precision-Focused",
+          "value": 1.0
+        },
+        "recall": {
+          "model": "Precision-Focused",
+          "value": 0.6666666666666666
+        },
+        "f1": {
+          "model": "Precision-Focused",
+          "value": 0.8
+        }
+      },
+      "harassment": {
+        "precision": {
+          "model": "Recall-Focused",
+          "value": 1.0
+        },
+        "recall": {
+          "model": "Precision-Focused",
+          "value": 0.3333333333333333
+        },
+        "f1": {
+          "model": "Recall-Focused",
+          "value": 0.5
+        }
+      }
+    }
+  },
+  "significance": {
+    "overall_f1": {
+      "Precision-Focused_vs_Recall-Focused": {
+        "p_value": 0.031578947368421054,
+        "significant": "True",
+        "test_method": "Fisher's exact test"
+      },
+      "Precision-Focused_vs_Balanced": {
+        "p_value": 0.031578947368421054,
+        "significant": "True",
+        "test_method": "Fisher's exact test"
+      },
+      "Recall-Focused_vs_Balanced": {
+        "p_value": 0.005263157894736842,
+        "significant": "True",
+        "test_method": "Fisher's exact test"
+      }
+    },
+    "per_category_f1": {
+      "hate": {
+        "Precision-Focused_vs_Recall-Focused": {
+          "difference": 0.30000000000000004,
+          "significant": true,
+          "test_method": "heuristic (difference > 0.05)",
+          "note": "Not a formal statistical test - just based on magnitude of difference"
+        },
+        "Precision-Focused_vs_Balanced": {
+          "difference": 0.30000000000000004,
+          "significant": true,
+          "test_method": "heuristic (difference > 0.05)",
+          "note": "Not a formal statistical test - just based on magnitude of difference"
+        },
+        "Recall-Focused_vs_Balanced": {
+          "difference": 0.0,
+          "significant": false,
+          "test_method": "heuristic (difference > 0.05)",
+          "note": "Not a formal statistical test - just based on magnitude of difference"
+        }
+      },
+      "harassment": {
+        "Precision-Focused_vs_Recall-Focused": {
+          "difference": 0.09999999999999998,
+          "significant": true,
+          "test_method": "heuristic (difference > 0.05)",
+          "note": "Not a formal statistical test - just based on magnitude of difference"
+        },
+        "Precision-Focused_vs_Balanced": {
+          "difference": 0.09999999999999998,
+          "significant": true,
+          "test_method": "heuristic (difference > 0.05)",
+          "note": "Not a formal statistical test - just based on magnitude of difference"
+        },
+        "Recall-Focused_vs_Balanced": {
+          "difference": 0.0,
+          "significant": false,
+          "test_method": "heuristic (difference > 0.05)",
+          "note": "Not a formal statistical test - just based on magnitude of difference"
+        }
+      }
+    }
+  }
+}

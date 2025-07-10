@@ -1,0 +1,8 @@
+{
+  "HATE": 0.7,
+  "HARASSMENT": 0.6,
+  "SELF_HARM": 0.8,
+  "THREAT": 0.65,
+  "SEXUAL": 0.75,
+  "OBSCENE": 0.5
+} 
